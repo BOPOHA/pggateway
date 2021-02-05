@@ -111,6 +111,7 @@ func (l *Listener) handleClient(client net.Conn) error {
 		if err != nil {
 			return err
 		}
+		// startup.SSLRequest = true
 	} else if l.config.SSL.Required {
 		// SSL is required but they didn't request it, return an error
 		errMsg := &pgproto.Error{

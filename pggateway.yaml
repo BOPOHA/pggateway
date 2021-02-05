@@ -1,0 +1,41 @@
+# Log server messages to stdout
+logging:
+  file:
+    level: 'debug'
+    out: '-'
+
+listeners:
+  # Listen for requests on port `5433`
+  ':5432':
+    # PostgreSQL server to forward requests to
+    target:
+      host: '127.0.0.1'
+      port: 2345
+
+    # Pass all authentication along to the target server
+    authentication:
+      virtualuser:
+        customauthmap:
+          - zoo: 'pass1'
+          - arni: 'pass2'
+        db:
+          ssl: true
+          user: 'test'
+          password: 'test'
+    ssl:
+      enabled: true
+      required: true
+      certificate: '/tmp/pg_data/server.crt'
+      key: '/tmp/pg_data/server.key'
+
+    # Log messages from this listener to stdout
+    logging:
+      file:
+        level: 'debug'
+        out: '-'
+
+    # Databases we will accept requests for,
+    #   '*' is a special case matching any database
+    databases:
+      '*':
+
