@@ -2,6 +2,7 @@ package pggateway
 
 import (
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -83,12 +84,6 @@ func (l *Listener) databaseAllowed(database []byte) bool {
 }
 
 func (l *Listener) handleClient(client net.Conn) error {
-	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
-	server, err := net.Dial("tcp", addr)
-	if err != nil {
-		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
-		return err
-	}
 
 	startup, err := pgproto.ParseStartupMessage(client)
 	if err != nil {
@@ -111,7 +106,6 @@ func (l *Listener) handleClient(client net.Conn) error {
 		if err != nil {
 			return err
 		}
-		// startup.SSLRequest = true
 	} else if l.config.SSL.Required {
 		// SSL is required but they didn't request it, return an error
 		errMsg := &pgproto.Error{
@@ -153,6 +147,33 @@ func (l *Listener) handleClient(client net.Conn) error {
 		}
 		_, err = pgproto.WriteMessage(errMsg, client)
 		return err
+	}
+
+	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
+	server, err := net.Dial("tcp", addr)
+	if err != nil {
+		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
+		return err
+	}
+
+	if isSSL {
+		bufSSLRequest := make([]byte, 8)
+		bufResponse := make([]byte, 1)
+		binary.BigEndian.PutUint32(bufSSLRequest[4:], uint32(80877103))
+		binary.BigEndian.PutUint32(bufSSLRequest, uint32(len(bufSSLRequest)))
+		_, err = server.Write(bufSSLRequest)
+		if err != nil {
+			return fmt.Errorf("error writing SSLRequest to server: %s", err)
+		}
+
+		_, err := server.Read(bufResponse)
+		if err != nil {
+			return fmt.Errorf("error read S after SSLRequest: %s", err)
+		}
+		if bufResponse[0] != 'S' {
+			return fmt.Errorf("server does not support SSL")
+		}
+		server = tls.Client(server, &tls.Config{InsecureSkipVerify: true})
 	}
 	sess, err := NewSession(startup, user, database, isSSL, client, server, l.plugins)
 	if err != nil {
