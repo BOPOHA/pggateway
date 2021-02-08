@@ -239,7 +239,7 @@ func (s *Session) ParseServerResponse() (pgproto.ServerMessage, error) {
 
 	if err != nil {
 		if !s.stopped {
-			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing server response: %#v", err)
+			s.plugins.LogError(nil, "error parsing server response: %#v", err)
 		}
 	} else {
 		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "server response")
