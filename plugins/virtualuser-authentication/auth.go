@@ -116,18 +116,23 @@ func (p *VirtualUser) Authenticate(sess *pggateway.Session, startup *pgproto.Sta
 			if err != nil {
 				return
 			}
-			firstResp, ok := serverMessage.(*pgproto.AuthenticationRequest)
-			if !ok {
-				return "", fmt.Errorf("error got not AuthenticationRequest %s", err)
+			switch msg := serverMessage.(type) {
+			case *pgproto.AuthenticationRequest:
+				secondResp, err := conv.Step(string(msg.Payload))
+				if err != nil {
+					return "", fmt.Errorf("seconf sasl challenge failed: %s", err)
+				}
+				return secondResp, nil
+
+			case *pgproto.Error:
+				return "", fmt.Errorf("server responses with error: %s", msg.String())
+
+			default:
+				return "", fmt.Errorf("server response is not AuthenticationRequest")
 			}
-			secondResp, err := conv.Step(string(firstResp.Payload))
-			if err != nil {
-				return
-			}
-			return secondResp, nil
 		}
 
-		initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: "SCRAM-SHA-256", Message: firstMsg}
+		initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: pgproto.SASLMechanismScramSHA256, Message: firstMsg}
 		nextConversation, err := qq(initSASLResponse)
 		if err != nil {
 			return false, err
