@@ -7,7 +7,7 @@ SOCKETDIR=$(mktemp -d -t initdb-XXXXXXXXXX)
 initdb --locale=en_US.UTF-8 -E UTF8
 
 echo '
-hostssl all all 127.0.0.1/32 md5
+hostssl all all 127.0.0.1/32 scram-sha-256
 local   all all trust
 ' > /tmp/pg_data/pg_hba.conf
 
@@ -15,11 +15,11 @@ openssl req -x509 -nodes -sha256 -days 3650 -newkey rsa:4096 \
   -keyout $PGDATA/server.key -out $PGDATA/server.crt \
   -subj  "/C=US/ST=NY/L=New York/O=Org, Inc./OU=DT/CN=localhost/emailAddress=root@localhost"
 
-postgres -k "$SOCKETDIR" -h 127.0.0.1 -p 2345 -F -c logging_collector=off  -c ssl=true &
+postgres -k "$SOCKETDIR" -h 127.0.0.1 -p 2345 -F -c logging_collector=off  -c ssl=true -c log_min_messages=DEBUG3 &
 
 sleep 5
 psql -h "$SOCKETDIR"  -p 2345 postgres <<EOF
-set password_encryption = 'md5';
+set password_encryption = 'scram-sha-256';
 CREATE DATABASE test;
 CREATE ROLE test WITH ENCRYPTED PASSWORD 'test' LOGIN;
 GRANT ALL PRIVILEGES ON DATABASE test TO test;

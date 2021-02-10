@@ -5,6 +5,7 @@ import (
 
 	"github.com/c653labs/pggateway"
 	"github.com/c653labs/pgproto"
+	"github.com/xdg-go/scram"
 )
 
 type VirtualUser struct {
@@ -88,15 +89,58 @@ func (p *VirtualUser) Authenticate(sess *pggateway.Session, startup *pgproto.Sta
 		return true, sess.WriteToClient(authResp)
 	}
 
-	passwdReq := &pgproto.PasswordMessage{}
 	switch authResp.Method {
 	case pgproto.AuthenticationMethodPlaintext:
-		passwdReq.Password = []byte(p.dbPassword)
+		return true, sess.WriteToServer(&pgproto.PasswordMessage{Password: []byte(p.dbPassword)})
 	case pgproto.AuthenticationMethodMD5:
+		passwdReq := &pgproto.PasswordMessage{}
 		passwdReq.SetPassword([]byte(p.dbUser), []byte(p.dbPassword), authResp.Salt)
+		return true, sess.WriteToServer(passwdReq)
+	case pgproto.AuthenticationMethodSASL:
+		sc, err := scram.SHA256.NewClient(p.dbUser, p.dbPassword, "")
+		if err != nil {
+			return false, fmt.Errorf("error creating scram client %s", err)
+		}
+		conv := sc.NewConversation()
+
+		firstMsg, err := conv.Step("")
+		if err != nil {
+			return false, fmt.Errorf("error creating first scram msg %s", err)
+		}
+		qq := func(ask pgproto.ClientMessage) (msg string, err error) {
+			err = sess.WriteToServer(ask)
+			if err != nil {
+				return
+			}
+			serverMessage, err := sess.ParseServerResponse()
+			if err != nil {
+				return
+			}
+			firstResp, ok := serverMessage.(*pgproto.AuthenticationRequest)
+			if !ok {
+				return "", fmt.Errorf("error got not AuthenticationRequest %s", err)
+			}
+			secondResp, err := conv.Step(string(firstResp.Payload))
+			if err != nil {
+				return
+			}
+			return secondResp, nil
+		}
+
+		initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: "SCRAM-SHA-256", Message: firstMsg}
+		nextConversation, err := qq(initSASLResponse)
+		if err != nil {
+			return false, err
+		}
+
+		nextSASLResponse := &pgproto.SASLResponse{Message: nextConversation}
+		nextConversation, err = qq(nextSASLResponse)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
 	default:
 		return false, fmt.Errorf("unexpected password request method from server")
 	}
-
-	return true, sess.WriteToServer(passwdReq)
 }
