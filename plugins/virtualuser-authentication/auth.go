@@ -112,20 +112,20 @@ func (p *VirtualUser) Authenticate(sess *pggateway.Session, startup *pgproto.Sta
 			if err != nil {
 				return
 			}
-			serverMessage, err := sess.ParseServerResponse()
+			serverResponse, err := sess.ParseServerResponse()
 			if err != nil {
 				return
 			}
-			switch msg := serverMessage.(type) {
+			switch response := serverResponse.(type) {
 			case *pgproto.AuthenticationRequest:
-				secondResp, err := conv.Step(string(msg.Payload))
+				secondResp, err := conv.Step(string(response.Message))
 				if err != nil {
 					return "", fmt.Errorf("seconf sasl challenge failed: %s", err)
 				}
 				return secondResp, nil
 
 			case *pgproto.Error:
-				return "", fmt.Errorf("server responses with error: %s", msg.String())
+				return "", fmt.Errorf("server responses with error: %s", response.String())
 
 			default:
 				return "", fmt.Errorf("server response is not AuthenticationRequest")
