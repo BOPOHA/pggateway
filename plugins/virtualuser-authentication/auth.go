@@ -8,23 +8,33 @@ import (
 	"github.com/xdg-go/scram"
 )
 
-type VirtualUser struct {
-	customAuthMap map[string]string
-	dbUser        string
-	dbPassword    string
-	dbSSL         bool
+type VirtualUserCredentials map[string]string
+type VirtualUserAuth struct {
+	virtualCredentials VirtualUserCredentials
+	dbUser             string
+	dbPassword         string
+	dbSSL              bool
 }
 
 func init() {
-	pggateway.RegisterAuthPlugin("virtualuser", newVirtualUserPlugin)
+	pggateway.RegisterAuthPlugin("virtualuser-authentication", newVirtualUserPlugin)
 }
 
 func newVirtualUserPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
 	var ok bool
-	auth := &VirtualUser{}
+	auth := &VirtualUserAuth{virtualCredentials: make(VirtualUserCredentials)}
 
-	// hardcode for now
-	auth.customAuthMap = map[string]string{"zoo": "pass1", "arni": "pass2"}
+	virtualCredentials, ok := config.Map("virtualusers")
+	if !ok {
+		return nil, fmt.Errorf("'virtualusers' is required")
+	}
+	for k, v := range virtualCredentials {
+		value, ok := v.(string)
+		if !ok {
+			continue
+		}
+		auth.virtualCredentials[k] = value
+	}
 
 	db, ok := config.Map("db")
 	if !ok {
@@ -41,21 +51,21 @@ func newVirtualUserPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationP
 	return auth, nil
 }
 
-func (p *VirtualUser) Authenticate(sess *pggateway.Session, startup *pgproto.StartupMessage) (bool, error) {
+func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto.StartupMessage) (bool, error) {
 
 	if !sess.IsSSL {
 		return false, fmt.Errorf("HPF requires an SSL session")
 	}
 	customUserName := string(sess.User)
-	if _, ok := p.customAuthMap[customUserName]; !ok {
-		return false, fmt.Errorf("virtual user %s is not allowed to access database", customUserName)
+	if _, ok := p.virtualCredentials[customUserName]; !ok {
+		return false, fmt.Errorf("virtual user %s does not exist", customUserName)
 	}
 
 	_, passwd, err := sess.GetUserPassword(pgproto.AuthenticationMethodPlaintext)
 	if err != nil {
 		return false, err
 	}
-	if string(passwd.Password) != p.customAuthMap[customUserName] {
+	if string(passwd.Password) != p.virtualCredentials[customUserName] {
 		return false, fmt.Errorf("failed to login user %s, bad password", customUserName)
 	}
 
