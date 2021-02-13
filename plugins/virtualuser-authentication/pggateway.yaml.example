@@ -20,7 +20,7 @@ listeners:
           arni: 'pass2'
         db:
           ssl: true
-          user: 'test1'
+          user: 'test'
           password: 'test'
     ssl:
       enabled: true
@@ -31,7 +31,7 @@ listeners:
     # Log messages from this listener to stdout
     logging:
       file:
-        level: 'info'
+        level: 'debug'
         out: '-'
 
     # Databases we will accept requests for,

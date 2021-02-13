@@ -1,6 +1,7 @@
 package pggateway
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -33,6 +34,20 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 	id, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
+	}
+
+	if isSSL {
+		_, err = target.Write([]byte{0, 0, 0, 8, 4, 210, 22, 47})
+		if err != nil {
+			return nil, fmt.Errorf("error writing SSLRequest to server: %s", err)
+		}
+		var respAcceptS [1]byte
+		l, err := target.Read(respAcceptS[:])
+		if err == nil && l == 1 && respAcceptS[0] == 'S' {
+			target = tls.Client(target, &tls.Config{InsecureSkipVerify: true})
+		} else {
+			return nil, fmt.Errorf("bad response after SSLRequest: %s %s", respAcceptS, err)
+		}
 	}
 
 	return &Session{
