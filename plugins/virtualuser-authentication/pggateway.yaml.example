@@ -16,8 +16,9 @@ listeners:
     authentication:
       virtualuser-authentication:
         virtualusers:
-          zoo: 'pass1'
+          zoo: 'md5b09dabe4edc0a5b220f7496af9605293'
           arni: 'pass2'
+          username: 'SCRAM-SHA-256$4096:UrxBRgDElbaS4iwfRzn59g==$SErsniXa5gEr03cXhcFPLSM4C/22IKTJ9emThT+wPrM=:rSaLPYfC3eor3cq3f1Zq6Dw2Rl7HwIUHCMP7avpJQak=' # securepassword
         db:
           ssl: true
           user: 'test'

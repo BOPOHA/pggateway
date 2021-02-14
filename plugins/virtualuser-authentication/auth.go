@@ -5,7 +5,7 @@ import (
 
 	"github.com/c653labs/pggateway"
 	"github.com/c653labs/pgproto"
-	"github.com/xdg-go/scram"
+	"mellium.im/sasl"
 )
 
 type VirtualUserCredentials map[string]string
@@ -107,51 +107,41 @@ func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto
 		passwdReq.SetPassword([]byte(p.dbUser), []byte(p.dbPassword), authResp.Salt)
 		return true, sess.WriteToServer(passwdReq)
 	case pgproto.AuthenticationMethodSASL:
-		sc, err := scram.SHA256.NewClient(p.dbUser, p.dbPassword, "")
-		if err != nil {
-			return false, fmt.Errorf("error creating scram client %s", err)
+		var authMech sasl.Mechanism
+		if authResp.SupportedScramSHA256 {
+			authMech = sasl.ScramSha256
+		} else if authResp.SupportedScramSHA256Plus {
+			// TODO: scram-sha-256-plus is not implemented now
+			authMech = sasl.ScramSha256Plus
 		}
-		conv := sc.NewConversation()
-
-		firstMsg, err := conv.Step("")
+		creds := sasl.Credentials(func() ([]byte, []byte, []byte) {
+			return []byte(p.dbUser), []byte(p.dbPassword), []byte{}
+		})
+		sc := sasl.NewClient(authMech, creds)
+		_, scMsg, err := sc.Step(nil)
 		if err != nil {
 			return false, fmt.Errorf("error creating first scram msg %s", err)
 		}
-		qq := func(ask pgproto.ClientMessage) (msg string, err error) {
-			err = sess.WriteToServer(ask)
-			if err != nil {
-				return
-			}
-			serverResponse, err := sess.ParseServerResponse()
-			if err != nil {
-				return
-			}
-			switch response := serverResponse.(type) {
-			case *pgproto.AuthenticationRequest:
-				secondResp, err := conv.Step(string(response.Message))
-				if err != nil {
-					return "", fmt.Errorf("seconf sasl challenge failed: %s", err)
-				}
-				return secondResp, nil
 
-			case *pgproto.Error:
-				return "", fmt.Errorf("server responses with error: %s", response.String())
-
-			default:
-				return "", fmt.Errorf("server response is not AuthenticationRequest")
-			}
+		initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: authMech.Name, Message: scMsg}
+		scMsg, err = sess.GetAuthMessageFromServer(initSASLResponse)
+		if err != nil {
+			return false, err
+		}
+		_, scMsg, err = sc.Step(scMsg)
+		if err != nil {
+			return false, fmt.Errorf("second sasl challenge failed: %s", err)
 		}
 
-		initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: pgproto.SASLMechanismScramSHA256, Message: firstMsg}
-		nextConversation, err := qq(initSASLResponse)
+		nextSASLResponse := &pgproto.SASLResponse{Message: scMsg}
+		scMsg, err = sess.GetAuthMessageFromServer(nextSASLResponse)
 		if err != nil {
 			return false, err
 		}
 
-		nextSASLResponse := &pgproto.SASLResponse{Message: nextConversation}
-		nextConversation, err = qq(nextSASLResponse)
+		_, scMsg, err = sc.Step(scMsg)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("third sasl challenge failed: %s", err)
 		}
 
 		return true, nil

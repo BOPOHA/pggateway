@@ -280,3 +280,25 @@ func (s *Session) loggingContextWithMessage(msg pgproto.Message) LoggingContext 
 	}
 	return context
 }
+
+func (s *Session) GetAuthMessageFromServer(ask pgproto.ClientMessage) (msg []byte, err error) {
+	err = s.WriteToServer(ask)
+	if err != nil {
+		return
+	}
+	serverResponse, err := s.ParseServerResponse()
+	if err != nil {
+		return
+	}
+	switch response := serverResponse.(type) {
+
+	case *pgproto.AuthenticationRequest:
+		return response.Message, nil
+
+	case *pgproto.Error:
+		return msg, fmt.Errorf("server responses with error: %s", response.String())
+
+	default:
+		return msg, fmt.Errorf("server response is not AuthenticationRequest")
+	}
+}
