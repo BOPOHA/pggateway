@@ -1,7 +1,11 @@
 package virtualuser_authentication
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/c653labs/pggateway"
 	"github.com/c653labs/pgproto"
@@ -54,21 +58,41 @@ func newVirtualUserPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationP
 func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto.StartupMessage) (bool, error) {
 
 	if !sess.IsSSL {
-		return false, fmt.Errorf("HPF requires an SSL session")
+		return false, fmt.Errorf("config requires a SSL session")
 	}
+
+	// Client authentication
 	customUserName := string(sess.User)
 	if _, ok := p.virtualCredentials[customUserName]; !ok {
 		return false, fmt.Errorf("virtual user %s does not exist", customUserName)
 	}
 
-	_, passwd, err := sess.GetUserPassword(pgproto.AuthenticationMethodPlaintext)
-	if err != nil {
-		return false, err
-	}
-	if string(passwd.Password) != p.virtualCredentials[customUserName] {
-		return false, fmt.Errorf("failed to login user %s, bad password", customUserName)
+	rolpassword := p.virtualCredentials[customUserName]
+	if strings.HasPrefix(rolpassword, "SCRAM-SHA-256$") {
+		return false, fmt.Errorf("SCRAM-SHA-256 auth on client side does not implemented yet")
+
+	} else if strings.HasPrefix(rolpassword, "md5") {
+
+		authReq, passwd, err := sess.GetUserPassword(pgproto.AuthenticationMethodMD5)
+		if err != nil {
+			return false, err
+		}
+		if !CheckMD5UserPassword([]byte(rolpassword[3:]), authReq.Salt, passwd.Password[3:]) {
+			return false, fmt.Errorf("failed to login user %s, md5 password check failed", customUserName)
+		}
+	} else {
+
+		_, passwd, err := sess.GetUserPassword(pgproto.AuthenticationMethodPlaintext)
+		if err != nil {
+			return false, err
+		}
+		if string(passwd.Password) != rolpassword {
+			return false, fmt.Errorf("failed to login user %s, plaintext password check failed", customUserName)
+		}
+
 	}
 
+	// Connecting to server
 	startupReq := &pgproto.StartupMessage{
 		SSLRequest: p.dbSSL,
 		Options: map[string][]byte{
@@ -82,7 +106,7 @@ func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto
 		startupReq.Options[k] = v
 	}
 
-	err = sess.WriteToServer(startupReq)
+	err := sess.WriteToServer(startupReq)
 	if err != nil {
 		return false, err
 	}
@@ -148,4 +172,17 @@ func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto
 	default:
 		return false, fmt.Errorf("unexpected password request method from server")
 	}
+}
+
+// CheckMD5UserPassword
+func CheckMD5UserPassword(md5UserPassword, salt, md5SumWithSalt []byte) bool {
+
+	digest := md5.New()
+	digest.Write(md5UserPassword)
+	digest.Write(salt)
+	hash := digest.Sum(nil)
+
+	encodedHash := make([]byte, hex.EncodedLen(len(hash)))
+	hex.Encode(encodedHash, hash)
+	return bytes.Equal(encodedHash, md5SumWithSalt)
 }
