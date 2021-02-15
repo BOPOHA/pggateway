@@ -83,12 +83,6 @@ func (l *Listener) databaseAllowed(database []byte) bool {
 }
 
 func (l *Listener) handleClient(client net.Conn) error {
-	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
-	server, err := net.Dial("tcp", addr)
-	if err != nil {
-		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
-		return err
-	}
 
 	startup, err := pgproto.ParseStartupMessage(client)
 	if err != nil {
@@ -153,6 +147,14 @@ func (l *Listener) handleClient(client net.Conn) error {
 		_, err = pgproto.WriteMessage(errMsg, client)
 		return err
 	}
+
+	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
+	server, err := net.Dial("tcp", addr)
+	if err != nil {
+		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
+		return err
+	}
+
 	sess, err := NewSession(startup, user, database, isSSL, client, server, l.plugins)
 	if err != nil {
 		l.plugins.LogError(nil, "error creating new client session: %s", err)
