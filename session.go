@@ -1,6 +1,7 @@
 package pggateway
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -35,7 +36,7 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 		return nil, err
 	}
 
-	return &Session{
+	s := &Session{
 		ID:       id.String(),
 		User:     user,
 		Database: database,
@@ -46,7 +47,20 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 		startup:  startup,
 		plugins:  plugins,
 		stopped:  false,
-	}, nil
+	}
+
+	if isSSL {
+		err = s.WriteToServer(&pgproto.SSLRequest{})
+		if err != nil {
+			return nil, fmt.Errorf("error writing SSLRequest to server: %s", err)
+		}
+		err = pgproto.ParseSSLResponse(target)
+		if err != nil {
+			return nil, fmt.Errorf("server does not support SSL: %s", err)
+		}
+		s.target = tls.Client(target, &tls.Config{InsecureSkipVerify: true})
+	}
+	return s, nil
 }
 
 func (s *Session) Close() {
