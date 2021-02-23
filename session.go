@@ -224,7 +224,7 @@ func (s *Session) WriteToServer(msg pgproto.ClientMessage) error {
 	return err
 }
 
-func (s *Session) WriteToClient(msg pgproto.ServerMessage) error {
+func (s *Session) WriteToClient(msg pgproto.Message) error {
 	_, err := pgproto.WriteMessage(msg, s.client)
 	return err
 }
@@ -278,4 +278,86 @@ func (s *Session) loggingContextWithMessage(msg pgproto.Message) LoggingContext 
 		context["message"] = msg.AsMap()
 	}
 	return context
+}
+
+func (s *Session) GetAuthMessageFromServer(message pgproto.ClientMessage) (msg []byte, err error) {
+
+	s.plugins.LogDebug(s.loggingContextWithMessage(message), "gateway request to server")
+
+	err = s.WriteToServer(message)
+
+	if err != nil {
+		return
+	}
+
+	serverResponse, err := s.ParseServerResponse()
+
+	if err != nil {
+		return
+	}
+
+	switch response := serverResponse.(type) {
+
+	case *pgproto.AuthenticationRequest:
+		return response.Message, nil
+
+	case *pgproto.Error:
+		return msg, fmt.Errorf("server responses with error: %s", response.String())
+
+	default:
+		return msg, fmt.Errorf("server response is not AuthenticationRequest")
+	}
+}
+
+func (s *Session) GetAuthMessageFromClient(message pgproto.ServerMessage) (resp *pgproto.SASLInitialResponse, err error) {
+
+	s.plugins.LogDebug(s.loggingContextWithMessage(message), "gateway request to client")
+
+	err = s.WriteToClient(message)
+
+	if err != nil {
+		return nil, fmt.Errorf("write to client error: %s", err)
+	}
+
+	msg, err := pgproto.ParseSASLInitialResponse(s.client)
+
+	if err == io.EOF {
+		return msg, io.EOF
+	}
+
+	if err != nil {
+		if !s.stopped {
+			s.plugins.LogError(nil, "error parsing SASLInitialResponse: %#v", err)
+		}
+	} else {
+		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "client response")
+	}
+
+	return msg, err
+}
+
+func (s *Session) GetMessageFromClient(auth *pgproto.AuthenticationRequest) ([]byte, error) {
+	// it is almost (s *Session) GetUserPassword func
+	// i don't want to touch the session context
+	s.plugins.LogDebug(s.loggingContextWithMessage(auth), "gateway request")
+
+	err := s.WriteToClient(auth)
+
+	if err != nil {
+		return nil, fmt.Errorf("write to client error: %s", err)
+	}
+
+	msg, err := s.ParseClientRequest()
+
+	if err != nil {
+		return nil, fmt.Errorf("parse %T response error: %s", msg, err)
+	}
+
+	pwdMsg, ok := msg.(*pgproto.PasswordMessage)
+
+	if !ok {
+		return nil, fmt.Errorf("expected PasswordMessage")
+	}
+
+	return pwdMsg.Password, nil
 }

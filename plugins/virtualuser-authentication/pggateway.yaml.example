@@ -1,0 +1,43 @@
+# Log server messages to stdout
+logging:
+  file:
+    level: 'debug'
+    out: '-'
+
+listeners:
+  # Listen for requests on port `5433`
+  ':5432':
+    # PostgreSQL server to forward requests to
+    target:
+      host: '127.0.0.1'
+      port: 2345
+
+    # Pass all authentication along to the target server
+    authentication:
+      virtualuser-authentication:
+        virtualusers:
+          zoo: 'md55dbb0a6ccb20a0399b301f69616cf4ca' # echo -n pass1zoo | md5sum
+          arni: 'pass2'
+          username: 'SCRAM-SHA-256$4096:CCKYO5ux7oZ5CcIMzDXw/A==$I0vnZaWMaqCF2xR3/+lMgXwJZKdHILWKFsQm3QpgRp0=:TBiVAuxlUrYOBqnvsVzFISHxwG+aqAyWUcC8ovl5pGs=' # securepassword
+          user: 'SCRAM-SHA-256$4096:iLSPyp46KvvOqk'
+        db:
+          ssl: true
+          user: 'test'
+          password: 'test'
+    ssl:
+      enabled: true
+      required: true
+      certificate: '/tmp/pg_data/server.crt'
+      key: '/tmp/pg_data/server.key'
+
+    # Log messages from this listener to stdout
+    logging:
+      file:
+        level: 'debug'
+        out: '-'
+
+    # Databases we will accept requests for,
+    #   '*' is a special case matching any database
+    databases:
+      '*':
+
