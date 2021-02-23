@@ -224,7 +224,7 @@ func (s *Session) WriteToServer(msg pgproto.ClientMessage) error {
 	return err
 }
 
-func (s *Session) WriteToClient(msg pgproto.Message) error {
+func (s *Session) WriteToClient(msg pgproto.ServerMessage) error {
 	_, err := pgproto.WriteMessage(msg, s.client)
 	return err
 }
@@ -336,10 +336,10 @@ func (s *Session) GetAuthMessageFromClient(message pgproto.ServerMessage) (resp 
 	return msg, err
 }
 
-func (s *Session) GetMessageFromClient(auth *pgproto.AuthenticationRequest) ([]byte, error) {
+func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationRequest) ([]byte, error) {
 	// it is almost (s *Session) GetUserPassword func
 	// i don't want to touch the session context
-	s.plugins.LogDebug(s.loggingContextWithMessage(auth), "gateway request")
+	s.plugins.LogDebug(s.loggingContextWithMessage(auth), "gateway request to client")
 
 	err := s.WriteToClient(auth)
 
