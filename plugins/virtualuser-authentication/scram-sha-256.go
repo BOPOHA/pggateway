@@ -7,58 +7,8 @@ import (
 	"github.com/xdg/scram"
 )
 
-// Gateway to PG server
-func (p VirtualUserAuth) SCRAMSHA256ServerAuth(sess *pggateway.Session, authResp *pgproto.AuthenticationRequest) (err error) {
-	var scramClient *scram.Client
-	var scramMechanism, strMsg string
-	var rawMsg []byte
-
-	if authResp.SupportedScramSHA256 {
-		scramClient, err = scram.SHA256.NewClient(p.dbUser, p.dbPassword, "")
-		if err != nil {
-			return fmt.Errorf("creating %s client %s", pgproto.SASLMechanismScramSHA256, err)
-		}
-		scramMechanism = pgproto.SASLMechanismScramSHA256
-
-	} else if authResp.SupportedScramSHA256Plus {
-		return fmt.Errorf("%s is not supported yet", pgproto.SASLMechanismScramSHA256Plus)
-	} else {
-		return fmt.Errorf("no found supported sasl mechanisms")
-	}
-
-	conv := scramClient.NewConversation()
-	strMsg, err = conv.Step("")
-	if err != nil {
-		return fmt.Errorf("error creating first scram msg %s", err)
-	}
-
-	initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: scramMechanism, Message: []byte(strMsg)}
-	rawMsg, err = sess.GetAuthMessageFromServer(initSASLResponse)
-	if err != nil {
-		return err
-	}
-	strMsg, err = conv.Step(string(rawMsg))
-	if err != nil {
-		return fmt.Errorf("second sasl challenge failed: %s", err)
-	}
-
-	nextSASLResponse := &pgproto.SASLResponse{Message: []byte(strMsg)}
-	rawMsg, err = sess.GetAuthMessageFromServer(nextSASLResponse)
-	if err != nil {
-		return err
-	}
-
-	strMsg, err = conv.Step(string(rawMsg))
-
-	if err != nil {
-		return fmt.Errorf("third sasl challenge failed: %s", err)
-	}
-
-	return nil
-}
-
 // Gateway to Client
-func (p VirtualUserAuth) SCRAMSHA256ClientAuth(sess *pggateway.Session, rolpassword string) error {
+func SCRAMSHA256ClientAuth(sess *pggateway.Session, rolpassword string) error {
 	clientAuthMech, err := sess.GetAuthMessageFromClient(
 		&pgproto.AuthenticationRequest{
 			Method:                   pgproto.AuthenticationMethodSASL,

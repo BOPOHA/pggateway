@@ -3,11 +3,10 @@ package pggateway
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/c653labs/pgproto"
 	"io"
 	"net"
 	"strconv"
-
-	"github.com/c653labs/pgproto"
 )
 
 type Listener struct {
@@ -82,7 +81,7 @@ func (l *Listener) databaseAllowed(database []byte) bool {
 	return ok
 }
 
-func (l *Listener) handleClient(client net.Conn) error {
+func (l *Listener) preAuthClient(client net.Conn, s *Session) (err error) {
 
 	startup, err := pgproto.ParseStartupMessage(client)
 	if err != nil {
@@ -147,25 +146,53 @@ func (l *Listener) handleClient(client net.Conn) error {
 		_, err = pgproto.WriteMessage(errMsg, client)
 		return err
 	}
+	s.User = user
+	s.Database = database
+	s.startup = startup
+	s.IsSSL = isSSL
+	s.client = client
+	return
+}
 
-	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
-	server, err := net.Dial("tcp", addr)
-	if err != nil {
-		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
-		return err
-	}
-
-	sess, err := NewSession(startup, user, database, isSSL, client, server, l.plugins)
-	if err != nil {
+func (l *Listener) handleClient(client net.Conn) error {
+	var err error
+	sess := &Session{}
+	if err := l.preAuthClient(client, sess); err != nil {
 		l.plugins.LogError(nil, "error creating new client session: %s", err)
 		client.Close()
 		return err
 	}
+	sess.generateUID()
+	sess.generateSalt()
+	sess.plugins = l.plugins
 	defer sess.Close()
 
 	l.plugins.LogInfo(sess.loggingContext(), "new client session")
 	err = sess.Handle()
 
+	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
+	if err = sess.connectToTarget(addr); err != nil {
+		return err
+	}
+
+	if err != nil {
+		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
+		sess.WriteToClient(&pgproto.Error{
+			Severity: []byte("Fatal"),
+			Message:  []byte("error connecting to server, " + err.Error()),
+		})
+		return err
+	}
+	if err = sess.AuthOnServer(l.config.Target.User, l.config.Target.Password); err != nil {
+		l.plugins.LogError(nil, "error auth to server %#v: %s", addr, err)
+		sess.WriteToClient(&pgproto.Error{
+			Severity: []byte("Fatal"),
+			Message:  []byte("error auth to server, " + err.Error()),
+		})
+		return err
+	}
+	l.plugins.LogInfo(nil, "starting proxy")
+	err = sess.proxy()
 	if err != nil && err != io.EOF {
 		l.plugins.LogError(sess.loggingContext(), "client session end: %s", err)
 	} else {

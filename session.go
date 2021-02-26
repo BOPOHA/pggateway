@@ -3,6 +3,7 @@ package pggateway
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/xdg/scram"
 	"io"
 	"net"
 	"sync"
@@ -29,40 +30,6 @@ type Session struct {
 	plugins *PluginRegistry
 }
 
-func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, isSSL bool, client net.Conn, target net.Conn, plugins *PluginRegistry) (*Session, error) {
-	var err error
-	id, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
-	}
-
-	s := &Session{
-		ID:       id.String(),
-		User:     user,
-		Database: database,
-		IsSSL:    isSSL,
-		client:   client,
-		target:   target,
-		salt:     generateSalt(),
-		startup:  startup,
-		plugins:  plugins,
-		stopped:  false,
-	}
-
-	if isSSL {
-		err = s.WriteToServer(&pgproto.SSLRequest{})
-		if err != nil {
-			return nil, fmt.Errorf("error writing SSLRequest to server: %s", err)
-		}
-		err = pgproto.ParseSSLResponse(target)
-		if err != nil {
-			return nil, fmt.Errorf("server does not support SSL: %s", err)
-		}
-		s.target = tls.Client(target, &tls.Config{InsecureSkipVerify: true})
-	}
-	return s, nil
-}
-
 func (s *Session) Close() {
 	if s.target != nil {
 		s.target.Close()
@@ -87,8 +54,7 @@ func (s *Session) Handle() error {
 		s.WriteToClient(errMsg)
 		return nil
 	}
-
-	return s.proxy()
+	return nil
 }
 
 func (s *Session) GetUserPassword(method pgproto.AuthenticationMethod) (*pgproto.AuthenticationRequest, *pgproto.PasswordMessage, error) {
@@ -267,8 +233,8 @@ func (s *Session) loggingContext() LoggingContext {
 		"user":       string(s.User),
 		"database":   string(s.Database),
 		"ssl":        s.IsSSL,
-		"client":     s.client.RemoteAddr(),
-		"target":     s.target.RemoteAddr(),
+		//"client":     s.client.RemoteAddr(),
+		//"target":     s.target.RemoteAddr(),
 	}
 }
 
@@ -278,6 +244,128 @@ func (s *Session) loggingContextWithMessage(msg pgproto.Message) LoggingContext 
 		context["message"] = msg.AsMap()
 	}
 	return context
+}
+
+func (s *Session) connectToTarget(addr string) (err error) {
+
+	s.target, err = net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+	if s.IsSSL {
+		err = s.WriteToServer(&pgproto.SSLRequest{})
+		if err != nil {
+			return fmt.Errorf("error writing SSLRequest to server: %s", err)
+		}
+		err = pgproto.ParseSSLResponse(s.target)
+		if err != nil {
+			return fmt.Errorf("server does not support SSL: %s", err)
+		}
+		s.target = tls.Client(s.target, &tls.Config{InsecureSkipVerify: true})
+	}
+
+	return nil
+}
+
+func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
+
+	// Connecting to the postgresql server
+	startupReq := &pgproto.StartupMessage{
+		SSLRequest: s.IsSSL,
+		Options: map[string][]byte{
+			"user": []byte(dbUser),
+		},
+	}
+	for k, v := range s.startup.Options {
+		if k == "user" {
+			continue
+		}
+		startupReq.Options[k] = v
+	}
+
+	err = s.WriteToServer(startupReq)
+	if err != nil {
+		return err
+	}
+
+	srvMsg, err := s.ParseServerResponse()
+	if err != nil {
+		return err
+	}
+	authResp, ok := srvMsg.(*pgproto.AuthenticationRequest)
+	if !ok {
+		return fmt.Errorf("unexpected response type from server request: %s", srvMsg)
+	}
+	if authResp.Method == pgproto.AuthenticationMethodOK {
+		return s.WriteToClient(authResp)
+	}
+
+	switch authResp.Method {
+	case pgproto.AuthenticationMethodPlaintext:
+		return s.WriteToServer(&pgproto.PasswordMessage{Password: []byte(dbPassword)})
+	case pgproto.AuthenticationMethodMD5:
+		passwdReq := &pgproto.PasswordMessage{}
+		passwdReq.SetPassword([]byte(dbUser), []byte(dbPassword), authResp.Salt)
+		return s.WriteToServer(passwdReq)
+	case pgproto.AuthenticationMethodSASL:
+		err = s.SCRAMSHA256ServerAuth(authResp, dbUser, dbPassword)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("unexpected password request method from server")
+	}
+}
+
+func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest, dbUser, dbPassword string) (err error) {
+	var scramClient *scram.Client
+	var scramMechanism, strMsg string
+	var rawMsg []byte
+
+	if authResp.SupportedScramSHA256 {
+		scramClient, err = scram.SHA256.NewClient(dbUser, dbPassword, "")
+		if err != nil {
+			return fmt.Errorf("creating %s client %s", pgproto.SASLMechanismScramSHA256, err)
+		}
+		scramMechanism = pgproto.SASLMechanismScramSHA256
+
+	} else if authResp.SupportedScramSHA256Plus {
+		return fmt.Errorf("%s is not supported yet", pgproto.SASLMechanismScramSHA256Plus)
+	} else {
+		return fmt.Errorf("no found supported sasl mechanisms")
+	}
+
+	conv := scramClient.NewConversation()
+	strMsg, err = conv.Step("")
+	if err != nil {
+		return fmt.Errorf("error creating first scram msg %s", err)
+	}
+
+	initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: scramMechanism, Message: []byte(strMsg)}
+	rawMsg, err = s.GetAuthMessageFromServer(initSASLResponse)
+	if err != nil {
+		return err
+	}
+	strMsg, err = conv.Step(string(rawMsg))
+	if err != nil {
+		return fmt.Errorf("second sasl challenge failed: %s", err)
+	}
+
+	nextSASLResponse := &pgproto.SASLResponse{Message: []byte(strMsg)}
+	rawMsg, err = s.GetAuthMessageFromServer(nextSASLResponse)
+	if err != nil {
+		return err
+	}
+
+	strMsg, err = conv.Step(string(rawMsg))
+
+	if err != nil {
+		return fmt.Errorf("third sasl challenge failed: %s", err)
+	}
+
+	return nil
 }
 
 func (s *Session) GetAuthMessageFromServer(message pgproto.ClientMessage) (msg []byte, err error) {
@@ -360,4 +448,16 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 	}
 
 	return pwdMsg.Password, nil
+}
+
+func (s *Session) generateUID() {
+	id, err := uuid.NewV4()
+	if err != nil {
+		return
+	}
+	s.ID = id.String()
+}
+
+func (s *Session) generateSalt() {
+	s.salt = generateSalt()
 }

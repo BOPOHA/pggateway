@@ -11,9 +11,11 @@ type Config struct {
 }
 
 type TargetConfig struct {
-	Host    string `yaml:"host,omitempty"`
-	Port    int    `yaml:"port,omitempty"`
-	SSLMode string `yaml:"sslmode,omitempty"`
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	SSLMode  string `yaml:"sslmode,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
 }
 
 type SSLConfig struct {
