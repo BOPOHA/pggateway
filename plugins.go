@@ -3,8 +3,6 @@ package pggateway
 import (
 	"fmt"
 	"sync"
-
-	"github.com/c653labs/pgproto"
 )
 
 var authPlugins = make(map[string]authPluginInitializer)
@@ -17,7 +15,7 @@ type Plugin interface{}
 
 type AuthenticationPlugin interface {
 	Plugin
-	Authenticate(*Session, *pgproto.StartupMessage) (bool, error)
+	Authenticate(*Session) (bool, error)
 }
 
 type LoggingContext map[string]interface{}
@@ -107,9 +105,9 @@ func (r *PluginRegistry) handleLog(msg loggingMessage) {
 	r.logMutex.Unlock()
 }
 
-func (r *PluginRegistry) Authenticate(sess *Session, startup *pgproto.StartupMessage) (bool, error) {
+func (r *PluginRegistry) Authenticate(sess *Session) (bool, error) {
 	for _, p := range r.authPlugins {
-		success, err := p.Authenticate(sess, startup)
+		success, err := p.Authenticate(sess)
 		if err != nil {
 			return false, err
 		}

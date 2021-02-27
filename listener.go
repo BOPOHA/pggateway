@@ -2,11 +2,9 @@ package pggateway
 
 import (
 	"crypto/tls"
-	"fmt"
 	"github.com/c653labs/pgproto"
 	"io"
 	"net"
-	"strconv"
 )
 
 type Listener struct {
@@ -71,15 +69,15 @@ func (l *Listener) Handle() error {
 	}
 }
 
-func (l *Listener) databaseAllowed(database []byte) bool {
-	_, ok := l.config.Databases[string(database)]
-	if ok {
-		return true
-	}
-
-	_, ok = l.config.Databases["*"]
-	return ok
-}
+//func (l *Listener) databaseAllowed(database []byte) bool {
+//	_, ok := l.config.Databases[string(database)]
+//	if ok {
+//		return true
+//	}
+//
+//	_, ok = l.config.Databases["*"]
+//	return ok
+//}
 
 func (l *Listener) preAuthClient(client net.Conn, s *Session) (err error) {
 
@@ -137,20 +135,22 @@ func (l *Listener) preAuthClient(client net.Conn, s *Session) (err error) {
 		return err
 	}
 
-	if !l.databaseAllowed(database) {
-		// Database is nto supported
-		errMsg := &pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte(fmt.Sprintf("unknown database %#v", string(database))),
-		}
-		_, err = pgproto.WriteMessage(errMsg, client)
-		return err
-	}
+	//if !l.databaseAllowed(database) {
+	//	// Database is nto supported
+	//	errMsg := &pgproto.Error{
+	//		Severity: []byte("Fatal"),
+	//		Message:  []byte(fmt.Sprintf("unknown database %#v", string(database))),
+	//	}
+	//	_, err = pgproto.WriteMessage(errMsg, client)
+	//	return err
+	//}
 	s.User = user
 	s.Database = database
-	s.startup = startup
+	s.Startup = startup
 	s.IsSSL = isSSL
 	s.client = client
+	s.generateUID()
+	s.generateSalt()
 	return
 }
 
@@ -162,37 +162,12 @@ func (l *Listener) handleClient(client net.Conn) error {
 		client.Close()
 		return err
 	}
-	sess.generateUID()
-	sess.generateSalt()
 	sess.plugins = l.plugins
 	defer sess.Close()
 
 	l.plugins.LogInfo(sess.loggingContext(), "new client session")
 	err = sess.Handle()
 
-	addr := net.JoinHostPort(l.config.Target.Host, strconv.Itoa(l.config.Target.Port))
-	if err = sess.connectToTarget(addr); err != nil {
-		return err
-	}
-
-	if err != nil {
-		l.plugins.LogError(nil, "error connecting to server %#v: %s", addr, err)
-		sess.WriteToClient(&pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("error connecting to server, " + err.Error()),
-		})
-		return err
-	}
-	if err = sess.AuthOnServer(l.config.Target.User, l.config.Target.Password); err != nil {
-		l.plugins.LogError(nil, "error auth to server %#v: %s", addr, err)
-		sess.WriteToClient(&pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("error auth to server, " + err.Error()),
-		})
-		return err
-	}
-	l.plugins.LogInfo(nil, "starting proxy")
-	err = sess.proxy()
 	if err != nil && err != io.EOF {
 		l.plugins.LogError(sess.loggingContext(), "client session end: %s", err)
 	} else {

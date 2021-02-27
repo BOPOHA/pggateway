@@ -12,10 +12,10 @@ import (
 )
 
 type IAMAuth struct {
-	roleArn    string
-	dbUser     string
-	dbPassword string
-	dbSSL      bool
+	RoleArn    string `json:"role"`
+	DbUser     string `json:"db"`
+	DbPassword string `json:"password"`
+	DbSSL      bool   `json:"ssl"`
 }
 
 func init() {
@@ -23,30 +23,12 @@ func init() {
 }
 
 func newIAMPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
-	var ok bool
-	auth := &IAMAuth{}
-
-	auth.roleArn, ok = config.String("role")
-	if !ok {
-		return nil, fmt.Errorf("'role' configuration value is required")
-	}
-
-	db, ok := config.Map("db")
-	if !ok {
-		return nil, fmt.Errorf("'db' configuration value is required")
-	}
-
-	auth.dbUser, ok = db.String("user")
-	if !ok {
-		return nil, fmt.Errorf("'db.user' configuration value is required")
-	}
-	auth.dbPassword = db.StringDefault("password", "")
-	auth.dbSSL = db.BoolDefault("ssl", true)
-
-	return auth, nil
+	plugin := &IAMAuth{}
+	pggateway.FillStruct(config, plugin)
+	return plugin, nil
 }
 
-func (p *IAMAuth) Authenticate(sess *pggateway.Session, startup *pgproto.StartupMessage) (bool, error) {
+func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 	// We are passing through IAM credentials... don't let people do silly things
 	if !sess.IsSSL {
 		return false, fmt.Errorf("IAM auth requires an SSL session")
@@ -59,7 +41,7 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session, startup *pgproto.Startup
 
 	awsSess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentialsFromCreds(credentials.Value{
-			AccessKeyID:     string(startup.Options["user"]),
+			AccessKeyID:     string(sess.Startup.Options["user"]),
 			SecretAccessKey: string(passwd.Password),
 		}),
 	}))
@@ -70,12 +52,12 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session, startup *pgproto.Startup
 	}
 
 	startupReq := &pgproto.StartupMessage{
-		SSLRequest: p.dbSSL,
+		SSLRequest: p.DbSSL,
 		Options: map[string][]byte{
-			"user": []byte(p.dbUser),
+			"user": []byte(p.DbUser),
 		},
 	}
-	for k, v := range startup.Options {
+	for k, v := range sess.Startup.Options {
 		if k == "user" {
 			continue
 		}
@@ -101,9 +83,9 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session, startup *pgproto.Startup
 	passwdReq := &pgproto.PasswordMessage{}
 	switch authResp.Method {
 	case pgproto.AuthenticationMethodPlaintext:
-		passwdReq.Password = []byte(p.dbPassword)
+		passwdReq.Password = []byte(p.DbPassword)
 	case pgproto.AuthenticationMethodMD5:
-		passwdReq.SetPassword([]byte(p.dbUser), []byte(p.dbPassword), authResp.Salt)
+		passwdReq.SetPassword([]byte(p.DbUser), []byte(p.DbPassword), authResp.Salt)
 	default:
 		return false, fmt.Errorf("unexpected password request method from server")
 	}

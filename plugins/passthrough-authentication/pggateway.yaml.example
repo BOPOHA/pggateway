@@ -1,0 +1,30 @@
+listeners:
+  - bind: '0.0.0.0:5432'
+    ssl:
+      enabled: true
+      required: false
+      certificate: '/tmp/pg_data/server.crt'
+      key: '/tmp/pg_data/server.key'
+    logging:
+      file:
+        level: 'debug'
+        out: '-'
+    authentication:
+      passthrough:
+        target:
+          host: '127.0.0.1'
+          port: 2345
+          user: 'test'
+          password: 'test'
+          databases:
+            - 'test'
+        logging:
+          file:
+            level: 'debug'
+            out: '-'
+      iam:
+        role: "arn::::////"
+        db: "sss"
+        password: "sads"
+        ssl: false
+        user: iammm

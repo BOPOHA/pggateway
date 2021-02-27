@@ -6,6 +6,7 @@ import (
 	"github.com/xdg/scram"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/c653labs/pgproto"
@@ -23,7 +24,7 @@ type Session struct {
 	salt     []byte
 	password []byte
 
-	startup *pgproto.StartupMessage
+	Startup *pgproto.StartupMessage
 
 	stopped bool
 
@@ -41,7 +42,7 @@ func (s *Session) String() string {
 }
 
 func (s *Session) Handle() error {
-	success, err := s.plugins.Authenticate(s, s.startup)
+	success, err := s.plugins.Authenticate(s)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (s *Session) Handle() error {
 		s.WriteToClient(errMsg)
 		return nil
 	}
-	return nil
+	return s.proxy()
 }
 
 func (s *Session) GetUserPassword(method pgproto.AuthenticationMethod) (*pgproto.AuthenticationRequest, *pgproto.PasswordMessage, error) {
@@ -276,7 +277,7 @@ func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
 			"user": []byte(dbUser),
 		},
 	}
-	for k, v := range s.startup.Options {
+	for k, v := range s.Startup.Options {
 		if k == "user" {
 			continue
 		}
@@ -296,11 +297,10 @@ func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
 	if !ok {
 		return fmt.Errorf("unexpected response type from server request: %s", srvMsg)
 	}
-	if authResp.Method == pgproto.AuthenticationMethodOK {
-		return s.WriteToClient(authResp)
-	}
 
 	switch authResp.Method {
+	case pgproto.AuthenticationMethodOK:
+		return s.WriteToClient(authResp)
 	case pgproto.AuthenticationMethodPlaintext:
 		return s.WriteToServer(&pgproto.PasswordMessage{Password: []byte(dbPassword)})
 	case pgproto.AuthenticationMethodMD5:
@@ -460,4 +460,9 @@ func (s *Session) generateUID() {
 
 func (s *Session) generateSalt() {
 	s.salt = generateSalt()
+}
+
+func (s *Session) DialToS(host string, port int) error {
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	return s.connectToTarget(addr)
 }

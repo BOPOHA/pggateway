@@ -6,7 +6,6 @@ package virtualuser_authentication
 
 import (
 	"github.com/c653labs/pggateway"
-	"github.com/c653labs/pgproto"
 )
 
 type VirtualUserCredentials map[string]string
@@ -20,19 +19,10 @@ func init() {
 
 func newVirtualUserPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
 	auth := &VirtualUserAuth{virtualCredentials: make(VirtualUserCredentials)}
-
-	for k, v := range config {
-		value, ok := v.(string)
-		if !ok {
-			continue
-		}
-		auth.virtualCredentials[k] = value
-	}
-
 	return auth, nil
 }
 
-func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session, startup *pgproto.StartupMessage) (bool, error) {
+func (p *VirtualUserAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 
 	err := p.AuthenticateClient(sess)
 	if err != nil {
