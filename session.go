@@ -79,6 +79,7 @@ func (s *Session) Handle() error {
 		s.WriteToClient(errMsg)
 		return nil
 	}
+
 	return s.proxy()
 }
 

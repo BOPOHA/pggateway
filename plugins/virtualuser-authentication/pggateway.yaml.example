@@ -6,7 +6,7 @@ logging:
 
 listeners:
   # Listen for requests on port `5432`
-  ':5432':
+  - bind: ':5432'
     ssl:
       enabled: true
       required: true

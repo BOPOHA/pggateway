@@ -28,20 +28,6 @@ type SSLConfig struct {
 	Key         string `yaml:"key,omitempty"`
 }
 
-// Passthrough
-type Passthrough struct {
-	Target TargetConfig `yaml:"target"`
-	//Logging Logging      `yaml:"logging"`
-}
-
-// VirtualuserAuthentication
-type VirtualuserAuthentication struct {
-	Name   string       `yaml:"name"`
-	Target TargetConfig `yaml:"target"`
-	//Logging Logging           `yaml:"logging"`
-	Users map[string]string `yaml:"users"`
-}
-
 type ConfigMap map[string]interface{}
 
 func (c ConfigMap) String(name string) (string, bool) {
