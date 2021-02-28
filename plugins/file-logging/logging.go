@@ -12,14 +12,14 @@ import (
 
 func init() {
 	zerolog.TimeFieldFormat = ""
-	pggateway.RegisterLoggingPlugin("file", newLoggingPlugin)
+	pggateway.RegisterLoggingPlugin("file", NewLoggingPlugin)
 }
 
 type LoggingPlugin struct {
 	log zerolog.Logger
 }
 
-func newLoggingPlugin(config pggateway.ConfigMap) (pggateway.LoggingPlugin, error) {
+func NewLoggingPlugin(config pggateway.ConfigMap) (pggateway.LoggingPlugin, error) {
 	var err error
 
 	var outFile io.Writer

@@ -31,6 +31,30 @@ type Session struct {
 	plugins *PluginRegistry
 }
 
+// NewSession
+func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, isSSL bool, client net.Conn, target net.Conn, plugins *PluginRegistry) (*Session, error) {
+	var err error
+	id, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Session{
+		ID:       id.String(),
+		User:     user,
+		Database: database,
+		IsSSL:    isSSL,
+		client:   client,
+		target:   target,
+		salt:     generateSalt(),
+		Startup:  startup,
+		plugins:  plugins,
+		stopped:  false,
+	}
+
+	return s, nil
+}
+
 func (s *Session) Close() {
 	if s.target != nil {
 		s.target.Close()
@@ -217,10 +241,16 @@ func (s *Session) ParseServerResponse() (pgproto.ServerMessage, error) {
 	if err == io.EOF {
 		return msg, io.EOF
 	}
-
+	//var loggingContex LoggingContext
+	//if msg == nil {
+	//	loggingContex = nil
+	//	println(msg.String())
+	//}	else {
+	//	s.loggingContextWithMessage(msg)
+	//}
 	if err != nil {
 		if !s.stopped {
-			s.plugins.LogError(nil, "error parsing server response: %#v", err)
+			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing server response: %#v", err)
 		}
 	} else {
 		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "server response")
@@ -247,7 +277,7 @@ func (s *Session) loggingContextWithMessage(msg pgproto.Message) LoggingContext 
 	return context
 }
 
-func (s *Session) connectToTarget(addr string) (err error) {
+func (s *Session) ConnectToTarget(addr string) (err error) {
 
 	s.target, err = net.Dial("tcp", addr)
 	if err != nil {
@@ -464,5 +494,5 @@ func (s *Session) generateSalt() {
 
 func (s *Session) DialToS(host string, port int) error {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	return s.connectToTarget(addr)
+	return s.ConnectToTarget(addr)
 }
