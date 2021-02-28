@@ -11,6 +11,10 @@ import (
 
 var (
 	config001 = []byte(`
+logging:
+  file:
+    level: 'debug'
+    out: '-'
 listeners:
   - bind: ':5432'
     logging:
@@ -96,7 +100,8 @@ func TestClienServerConvPlainText(t *testing.T) {
 		t.Fatalf("error %s", err)
 	}
 	if _, ok := sm.(*pgproto.AuthenticationRequest); !ok {
-		// "Message":"password authentication failed for user \"test\""
+		// Expected &pgproto.AuthenticationRequest{
+		// Method:0, Salt:[]uint8(nil), SupportedScramSHA256:false, SupportedScramSHA256Plus:false, Message:[]uint8(nil)}
 		t.Fatalf("expected Error message, got %#v", sm)
 	}
 	//fmt.Printf("%#v: ", sm)

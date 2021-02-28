@@ -1,7 +1,6 @@
 package passthrough
 
 import (
-	"fmt"
 	"github.com/c653labs/pggateway"
 )
 
@@ -17,7 +16,6 @@ func NewPassthroughPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationP
 
 	plugin := &Passthrough{}
 	pggateway.FillStruct(config, plugin)
-	fmt.Println(plugin)
 	return plugin, nil
 }
 
