@@ -6,22 +6,8 @@ import (
 
 type Config struct {
 	Procs     int                  `yaml:"procs,omitempty"`
-	Listeners []ListenerConfig     `yaml:"listeners"`
 	Logging   map[string]ConfigMap `yaml:"logging,omitempty"`
-}
-
-// Passthrough
-type Passthrough struct {
-	Target TargetConfig `yaml:"target"`
-	//Logging Logging      `yaml:"logging"`
-}
-
-// VirtualuserAuthentication
-type VirtualuserAuthentication struct {
-	Name   string       `yaml:"name"`
-	Target TargetConfig `yaml:"target"`
-	//Logging Logging           `yaml:"logging"`
-	Users map[string]string `yaml:"users"`
+	Listeners []*ListenerConfig    `yaml:"listeners,omitempty"`
 }
 
 // TargetConfig
@@ -40,6 +26,20 @@ type SSLConfig struct {
 	Required    bool   `yaml:"required,omitempty"`
 	Certificate string `yaml:"certificate,omitempty"`
 	Key         string `yaml:"key,omitempty"`
+}
+
+// Passthrough
+type Passthrough struct {
+	Target TargetConfig `yaml:"target"`
+	//Logging Logging      `yaml:"logging"`
+}
+
+// VirtualuserAuthentication
+type VirtualuserAuthentication struct {
+	Name   string       `yaml:"name"`
+	Target TargetConfig `yaml:"target"`
+	//Logging Logging           `yaml:"logging"`
+	Users map[string]string `yaml:"users"`
 }
 
 type ConfigMap map[string]interface{}
@@ -109,10 +109,10 @@ func (c ConfigMap) Map(name string) (ConfigMap, bool) {
 
 // ListenerConfig
 type ListenerConfig struct {
-	Authentication map[string]ConfigMap `yaml:"authentication,omitempty"`
 	Bind           string               `yaml:"bind,omitempty"`
-	Logging        map[string]ConfigMap `yaml:"logging,omitempty"`
 	SSL            SSLConfig            `yaml:"ssl,omitempty"`
+	Authentication map[string]ConfigMap `yaml:"authentication,omitempty"`
+	Logging        map[string]ConfigMap `yaml:"logging,omitempty"`
 }
 
 func NewConfig() *Config {
@@ -126,7 +126,7 @@ func (c *Config) Unmarshal(in []byte) error {
 func (c *Config) GetListeners() []*Listener {
 	listeners := make([]*Listener, 0)
 	for _, config := range c.Listeners {
-		listeners = append(listeners, NewListener(&config))
+		listeners = append(listeners, NewListener(config))
 	}
 	return listeners
 }
