@@ -32,7 +32,6 @@ listeners:
           port: 2345
           user: 'test'
           password: 'test'
-        # Databases we will accept requests for,
-        #   '*' is a special case matching any database
-        databases:
-          '*':
+          # Databases we will accept requests for. Dont set any rows to matching any database
+          databases:
+            - 'test'

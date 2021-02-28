@@ -32,6 +32,24 @@ type Session struct {
 }
 
 // NewSession
+func NewSessionFromStartup(startup *pgproto.StartupMessage, client net.Conn) (*Session, error) {
+	var user []byte
+	var database []byte
+	var ok bool
+
+	if user, ok = startup.Options["user"]; !ok {
+		// No username was provided
+		return nil, RetunErrorfAndWritePGMsg(client, "user startup option is required")
+	}
+
+	if database, ok = startup.Options["database"]; !ok {
+		// No database was provided
+		return nil, RetunErrorfAndWritePGMsg(client, "database startup option is required")
+	}
+
+	return NewSession(startup, user, database, false, client, nil, nil)
+}
+
 func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, isSSL bool, client net.Conn, target net.Conn, plugins *PluginRegistry) (*Session, error) {
 	var err error
 	id, err := uuid.NewV4()
@@ -39,7 +57,7 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 		return nil, err
 	}
 
-	s := &Session{
+	return &Session{
 		ID:       id.String(),
 		User:     user,
 		Database: database,
@@ -50,9 +68,7 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 		startup:  startup,
 		plugins:  plugins,
 		stopped:  false,
-	}
-
-	return s, nil
+	}, nil
 }
 
 func (s *Session) Close() {
@@ -72,11 +88,7 @@ func (s *Session) Handle() error {
 	}
 
 	if !success {
-		errMsg := &pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("failed to authenticate"),
-		}
-		s.WriteToClient(errMsg)
+		_ = RetunErrorfAndWritePGMsg(s.client, "failed to authenticate")
 		return nil
 	}
 
@@ -221,6 +233,10 @@ func (s *Session) WriteToClient(msg pgproto.ServerMessage) error {
 	return err
 }
 
+func (s *Session) WriteToClientEf(format string, a ...interface{}) error {
+	return RetunErrorfAndWritePGMsg(s.client, format, a...)
+}
+
 func (s *Session) ParseClientRequest() (pgproto.ClientMessage, error) {
 	msg, err := pgproto.ParseClientMessage(s.client)
 	if err == io.EOF {
@@ -260,13 +276,20 @@ func (s *Session) ParseServerResponse() (pgproto.ServerMessage, error) {
 }
 
 func (s *Session) loggingContext() LoggingContext {
+	var cRA, tRA string
+	if s.target != nil {
+		tRA = s.target.RemoteAddr().String()
+	}
+	if s.client != nil {
+		cRA = s.client.RemoteAddr().String()
+	}
 	return LoggingContext{
 		"session_id": s.ID,
 		"user":       string(s.User),
 		"database":   string(s.Database),
 		"ssl":        s.IsSSL,
-		//"client":     s.client.RemoteAddr(),
-		//"target":     s.target.RemoteAddr(),
+		"client":     cRA,
+		"target":     tRA,
 	}
 }
 
@@ -483,14 +506,6 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 
 func (s *Session) GetStartup() *pgproto.StartupMessage {
 	return s.startup
-}
-
-func (s *Session) generateUID() {
-	id, err := uuid.NewV4()
-	if err != nil {
-		return
-	}
-	s.ID = id.String()
 }
 
 func (s *Session) generateSalt() {

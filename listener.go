@@ -2,6 +2,7 @@ package pggateway
 
 import (
 	"crypto/tls"
+	"fmt"
 	"github.com/c653labs/pgproto"
 	"io"
 	"net"
@@ -69,100 +70,46 @@ func (l *Listener) Handle() error {
 	}
 }
 
-//func (l *Listener) databaseAllowed(database []byte) bool {
-//	_, ok := l.config.Databases[string(database)]
-//	if ok {
-//		return true
-//	}
-//
-//	_, ok = l.config.Databases["*"]
-//	return ok
-//}
+func (l *Listener) handleClient(client net.Conn) error {
 
-func (l *Listener) preAuthClient(client net.Conn, s *Session) (err error) {
+	var err error
+	var startup *pgproto.StartupMessage
+	var isSSL bool
 
-	startup, err := pgproto.ParseStartupMessage(client)
+	startup, err = pgproto.ParseStartupMessage(client)
 	if err != nil {
 		return err
 	}
 
-	isSSL := false
 	if startup.SSLRequest {
 		if !l.config.SSL.Enabled {
-			_, err := client.Write([]byte{'N'})
+			_, err = client.Write([]byte{'N'})
 			return err
 		}
 		client, err = l.upgradeSSLConnection(client)
 		if err != nil {
 			return err
 		}
-
 		isSSL = true
 		startup, err = pgproto.ParseStartupMessage(client)
 		if err != nil {
 			return err
 		}
+		fmt.Printf("SSLLK0: %v\n\n", startup.SSLRequest)
+
 	} else if l.config.SSL.Required {
-		// SSL is required but they didn't request it, return an error
-		errMsg := &pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("server does not support SSL, but SSL was required"),
-		}
-		_, err = pgproto.WriteMessage(errMsg, client)
-		return err
+		return RetunErrorfAndWritePGMsg(client, "server does not support SSL, but SSL was required")
 	}
 
-	var user []byte
-	var database []byte
-	var ok bool
-	if user, ok = startup.Options["user"]; !ok {
-		// No username was provided
-		errMsg := &pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("user startup option is required"),
-		}
-		_, err = pgproto.WriteMessage(errMsg, client)
-		return err
-	}
-
-	if database, ok = startup.Options["database"]; !ok {
-		// No database was provided
-		errMsg := &pgproto.Error{
-			Severity: []byte("Fatal"),
-			Message:  []byte("database startup option is required"),
-		}
-		_, err = pgproto.WriteMessage(errMsg, client)
-		return err
-	}
-
-	//if !l.databaseAllowed(database) {
-	//	// Database is nto supported
-	//	errMsg := &pgproto.Error{
-	//		Severity: []byte("Fatal"),
-	//		Message:  []byte(fmt.Sprintf("unknown database %#v", string(database))),
-	//	}
-	//	_, err = pgproto.WriteMessage(errMsg, client)
-	//	return err
-	//}
-	s.User = user
-	s.Database = database
-	s.startup = startup
-	s.IsSSL = isSSL
-	s.client = client
-	s.generateUID()
-	s.generateSalt()
-	return
-}
-
-func (l *Listener) handleClient(client net.Conn) error {
-	var err error
-	sess := &Session{}
-	if err := l.preAuthClient(client, sess); err != nil {
+	sess, err := NewSessionFromStartup(startup, client)
+	if err != nil {
 		l.plugins.LogError(nil, "error creating new client session: %s", err)
 		client.Close()
 		return err
 	}
 	sess.plugins = l.plugins
+	sess.IsSSL = isSSL
+
 	defer sess.Close()
 
 	l.plugins.LogInfo(sess.loggingContext(), "new client session")
@@ -191,9 +138,9 @@ func (l *Listener) upgradeSSLConnection(client net.Conn) (net.Conn, error) {
 	sslClient := tls.Server(client, &tls.Config{
 		Certificates: []tls.Certificate{cer},
 	})
-	sslClient.Handshake()
+	err = sslClient.Handshake()
 
-	return sslClient, nil
+	return sslClient, err
 }
 
 func (l *Listener) String() string {

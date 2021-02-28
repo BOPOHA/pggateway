@@ -4,6 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/c653labs/pgproto"
+	"io"
 )
 
 func generateSalt() []byte {
@@ -31,4 +35,28 @@ func FillStruct(data map[string]interface{}, result interface{}) error {
 	}
 
 	return json.Unmarshal(c, result)
+}
+
+func IsDatabaseAllowed(databases []string, database []byte) bool {
+	if len(databases) == 0 {
+		return true
+	}
+	for _, match := range databases {
+		if match == string(database) {
+			return true
+		}
+	}
+	return false
+}
+
+func RetunErrorfAndWritePGMsg(out io.Writer, format string, a ...interface{}) error {
+	msgString := fmt.Sprintf(format, a...)
+
+	errMsg := &pgproto.Error{
+		Severity: []byte("Fatal"),
+		Message:  []byte(msgString),
+	}
+	_, _ = pgproto.WriteMessage(errMsg, out)
+
+	return errors.New(msgString)
 }

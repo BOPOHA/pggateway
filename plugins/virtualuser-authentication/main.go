@@ -28,7 +28,9 @@ func newVirtualUserPlugin(config pggateway.ConfigMap) (plugin pggateway.Authenti
 }
 
 func (p *VirtualuserAuthentication) Authenticate(sess *pggateway.Session) (bool, error) {
-
+	if !pggateway.IsDatabaseAllowed(p.Target.Databases, sess.Database) {
+		return false, sess.WriteToClientEf("IsDatabaseAllowed returns False")
+	}
 	err := p.AuthenticateClient(sess)
 	if err != nil {
 		return false, err
