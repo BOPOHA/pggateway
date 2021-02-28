@@ -24,7 +24,7 @@ type Session struct {
 	salt     []byte
 	password []byte
 
-	Startup *pgproto.StartupMessage
+	startup *pgproto.StartupMessage
 
 	stopped bool
 
@@ -47,7 +47,7 @@ func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, i
 		client:   client,
 		target:   target,
 		salt:     generateSalt(),
-		Startup:  startup,
+		startup:  startup,
 		plugins:  plugins,
 		stopped:  false,
 	}
@@ -308,7 +308,7 @@ func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
 			"user": []byte(dbUser),
 		},
 	}
-	for k, v := range s.Startup.Options {
+	for k, v := range s.GetStartup().Options {
 		if k == "user" {
 			continue
 		}
@@ -479,6 +479,10 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 	}
 
 	return pwdMsg.Password, nil
+}
+
+func (s *Session) GetStartup() *pgproto.StartupMessage {
+	return s.startup
 }
 
 func (s *Session) generateUID() {

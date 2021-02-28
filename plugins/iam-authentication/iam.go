@@ -41,7 +41,7 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 
 	awsSess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentialsFromCreds(credentials.Value{
-			AccessKeyID:     string(sess.Startup.Options["user"]),
+			AccessKeyID:     string(sess.User),
 			SecretAccessKey: string(passwd.Password),
 		}),
 	}))
@@ -57,7 +57,7 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 			"user": []byte(p.DbUser),
 		},
 	}
-	for k, v := range sess.Startup.Options {
+	for k, v := range sess.GetStartup().Options {
 		if k == "user" {
 			continue
 		}

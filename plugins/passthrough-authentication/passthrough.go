@@ -24,5 +24,5 @@ func (p *Passthrough) Authenticate(sess *pggateway.Session) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return true, sess.WriteToServer(sess.Startup)
+	return true, sess.WriteToServer(sess.GetStartup())
 }

@@ -102,7 +102,9 @@ type ListenerConfig struct {
 }
 
 func NewConfig() *Config {
-	return &Config{}
+	return &Config{
+		Logging: make(map[string]ConfigMap),
+	}
 }
 
 func (c *Config) Unmarshal(in []byte) error {

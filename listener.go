@@ -146,7 +146,7 @@ func (l *Listener) preAuthClient(client net.Conn, s *Session) (err error) {
 	//}
 	s.User = user
 	s.Database = database
-	s.Startup = startup
+	s.startup = startup
 	s.IsSSL = isSSL
 	s.client = client
 	s.generateUID()
