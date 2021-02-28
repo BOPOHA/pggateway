@@ -10,22 +10,6 @@ type Config struct {
 	Logging   map[string]ConfigMap `yaml:"logging,omitempty"`
 }
 
-// ListenerConfig
-type ListenerConfig struct {
-	Bind           string               `yaml:"bind"`
-	SSL            SSLConfig            `yaml:"ssl,omitempty"`
-	Logging        map[string]ConfigMap `yaml:"logging,omitempty"`
-	Authentication map[string]ConfigMap `yaml:"authentication"`
-}
-
-// SSLConfig
-type SSLConfig struct {
-	Enabled     bool   `yaml:"enabled"`
-	Required    bool   `yaml:"required"`
-	Certificate string `yaml:"certificate"`
-	Key         string `yaml:"key"`
-}
-
 // Passthrough
 type Passthrough struct {
 	Target TargetConfig `yaml:"target"`
@@ -48,6 +32,14 @@ type TargetConfig struct {
 	User      string   `yaml:"user,omitempty"`
 	Password  string   `yaml:"password,omitempty"`
 	Databases []string `yaml:"databases,omitempty"`
+}
+
+// SSLConfig
+type SSLConfig struct {
+	Enabled     bool   `yaml:"enabled,omitempty"`
+	Required    bool   `yaml:"required,omitempty"`
+	Certificate string `yaml:"certificate,omitempty"`
+	Key         string `yaml:"key,omitempty"`
 }
 
 type ConfigMap map[string]interface{}
@@ -113,6 +105,14 @@ func (c ConfigMap) Map(name string) (ConfigMap, bool) {
 		m[key] = v
 	}
 	return m, true
+}
+
+// ListenerConfig
+type ListenerConfig struct {
+	Authentication map[string]ConfigMap `yaml:"authentication,omitempty"`
+	Bind           string               `yaml:"bind,omitempty"`
+	Logging        map[string]ConfigMap `yaml:"logging,omitempty"`
+	SSL            SSLConfig            `yaml:"ssl,omitempty"`
 }
 
 func NewConfig() *Config {
