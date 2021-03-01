@@ -31,25 +31,6 @@ type Session struct {
 	plugins *PluginRegistry
 }
 
-// NewSession
-func NewSessionFromStartup(startup *pgproto.StartupMessage, client net.Conn) (*Session, error) {
-	var user []byte
-	var database []byte
-	var ok bool
-
-	if user, ok = startup.Options["user"]; !ok {
-		// No username was provided
-		return nil, RetunErrorfAndWritePGMsg(client, "user startup option is required")
-	}
-
-	if database, ok = startup.Options["database"]; !ok {
-		// No database was provided
-		return nil, RetunErrorfAndWritePGMsg(client, "database startup option is required")
-	}
-
-	return NewSession(startup, user, database, false, client, nil, nil)
-}
-
 func NewSession(startup *pgproto.StartupMessage, user []byte, database []byte, isSSL bool, client net.Conn, target net.Conn, plugins *PluginRegistry) (*Session, error) {
 	var err error
 	id, err := uuid.NewV4()
@@ -258,13 +239,7 @@ func (s *Session) ParseServerResponse() (pgproto.ServerMessage, error) {
 	if err == io.EOF {
 		return msg, io.EOF
 	}
-	//var loggingContex LoggingContext
-	//if msg == nil {
-	//	loggingContex = nil
-	//	println(msg.String())
-	//}	else {
-	//	s.loggingContextWithMessage(msg)
-	//}
+
 	if err != nil {
 		if !s.stopped {
 			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing server response: %#v", err)

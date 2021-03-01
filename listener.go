@@ -2,7 +2,6 @@ package pggateway
 
 import (
 	"crypto/tls"
-	"fmt"
 	"github.com/c653labs/pgproto"
 	"io"
 	"net"
@@ -95,20 +94,30 @@ func (l *Listener) handleClient(client net.Conn) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("SSLLK0: %v\n\n", startup.SSLRequest)
-
 	} else if l.config.SSL.Required {
+		// SSL is required but they didn't request it, return an error
 		return RetunErrorfAndWritePGMsg(client, "server does not support SSL, but SSL was required")
 	}
 
-	sess, err := NewSessionFromStartup(startup, client)
+	var user []byte
+	var database []byte
+	var ok bool
+
+	if user, ok = startup.Options["user"]; !ok {
+		// No username was provided
+		return RetunErrorfAndWritePGMsg(client, "user startup option is required")
+	}
+
+	if database, ok = startup.Options["database"]; !ok {
+		// No database was provided
+		return RetunErrorfAndWritePGMsg(client, "database startup option is required")
+	}
+
+	sess, err := NewSession(startup, user, database, isSSL, client, nil, l.plugins)
 	if err != nil {
 		l.plugins.LogError(nil, "error creating new client session: %s", err)
-		client.Close()
 		return err
 	}
-	sess.plugins = l.plugins
-	sess.IsSSL = isSSL
 
 	defer sess.Close()
 
