@@ -304,6 +304,7 @@ func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
 		SSLRequest: s.IsSSL,
 		Options: map[string][]byte{
 			"user": []byte(dbUser),
+			//"database": []byte(s.Database),
 		},
 	}
 	for k, v := range s.GetStartup().Options {

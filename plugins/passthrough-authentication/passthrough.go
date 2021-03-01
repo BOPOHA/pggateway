@@ -9,10 +9,10 @@ type Passthrough struct {
 }
 
 func init() {
-	pggateway.RegisterAuthPlugin("passthrough", NewPassthroughPlugin)
+	pggateway.RegisterAuthPlugin("passthrough", newPassthroughPlugin)
 }
 
-func NewPassthroughPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
+func newPassthroughPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
 
 	plugin := &Passthrough{}
 	pggateway.FillStruct(config, plugin)
