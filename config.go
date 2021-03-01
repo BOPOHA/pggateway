@@ -97,7 +97,7 @@ func (c ConfigMap) Map(name string) (ConfigMap, bool) {
 type ListenerConfig struct {
 	Bind           string               `yaml:"bind,omitempty"`
 	SSL            SSLConfig            `yaml:"ssl,omitempty"`
-	Authentication map[string]ConfigMap `yaml:"authentication,omitempty"`
+	Authentication map[string]interface{} `yaml:"authentication,omitempty"`
 	Logging        map[string]ConfigMap `yaml:"logging,omitempty"`
 }
 

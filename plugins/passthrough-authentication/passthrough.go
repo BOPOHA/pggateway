@@ -12,7 +12,7 @@ func init() {
 	pggateway.RegisterAuthPlugin("passthrough", newPassthroughPlugin)
 }
 
-func newPassthroughPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
+func newPassthroughPlugin(config interface{}) (pggateway.AuthenticationPlugin, error) {
 
 	plugin := &Passthrough{}
 	pggateway.FillStruct(config, plugin)

@@ -22,7 +22,7 @@ func init() {
 	pggateway.RegisterAuthPlugin("iam", newIAMPlugin)
 }
 
-func newIAMPlugin(config pggateway.ConfigMap) (pggateway.AuthenticationPlugin, error) {
+func newIAMPlugin(config interface{}) (pggateway.AuthenticationPlugin, error) {
 	plugin := &IAMAuth{}
 	pggateway.FillStruct(config, plugin)
 	return plugin, nil

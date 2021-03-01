@@ -19,7 +19,7 @@ func generateSalt() []byte {
 	return salt
 }
 
-func FillStruct(data map[string]interface{}, result interface{}) error {
+func FillStruct(data interface{}, result interface{}) error {
 	//t := reflect.ValueOf(result).Elem()
 	//for k, v := range data {
 	//	k = strings.Title(k)

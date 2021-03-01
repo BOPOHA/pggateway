@@ -8,7 +8,7 @@ import (
 var authPlugins = make(map[string]authPluginInitializer)
 var loggingPlugins = make(map[string]loggingPluginInitializer)
 
-type authPluginInitializer func(ConfigMap) (AuthenticationPlugin, error)
+type authPluginInitializer func(interface{}) (AuthenticationPlugin, error)
 type loggingPluginInitializer func(ConfigMap) (LoggingPlugin, error)
 
 type Plugin interface{}
@@ -50,7 +50,7 @@ type PluginRegistry struct {
 	logMutex       *sync.Mutex
 }
 
-func NewPluginRegistry(auth map[string]ConfigMap, logging map[string]ConfigMap) (*PluginRegistry, error) {
+func NewPluginRegistry(auth map[string]interface{}, logging map[string]ConfigMap) (*PluginRegistry, error) {
 	r := &PluginRegistry{
 		authPlugins:    make(map[string]AuthenticationPlugin),
 		loggingPlugins: make(map[string]LoggingPlugin),

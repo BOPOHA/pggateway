@@ -7,15 +7,11 @@ import (
 	"strings"
 )
 
-func (p *VirtualuserAuthentication) AuthenticateClient(sess *pggateway.Session) (err error) {
+func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session) (err error) {
 
 	// Client authentication
 	customUserName := string(sess.User)
-	if _, ok := p.Users[customUserName]; !ok {
-		return fmt.Errorf("virtual user %s does not exist", customUserName)
-	}
-
-	rolpassword := p.Users[customUserName]
+	rolpassword := p.GetRolePassword(customUserName)
 
 	if strings.HasPrefix(rolpassword, "SCRAM-SHA-256$") {
 		err := SCRAMSHA256ClientAuth(sess, rolpassword)
