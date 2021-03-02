@@ -172,7 +172,7 @@ func (s *Session) proxyServerMessages(stop *sync.Cond, errs []error) {
 
 		flush := false
 		switch m := msg.(type) {
-		case *pgproto.ReadyForQuery:
+		case *pgproto.ReadyForQuery, *pgproto.CopyDone:
 			flush = true
 		case *pgproto.AuthenticationRequest:
 			flush = m.Method != pgproto.AuthenticationMethodOK

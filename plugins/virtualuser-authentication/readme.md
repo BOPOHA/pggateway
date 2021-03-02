@@ -14,6 +14,35 @@ CREATE DATABASE test;
 CREATE ROLE plaintestrole WITH ENCRYPTED PASSWORD 'plaintestpassword' LOGIN;
 GRANT ALL PRIVILEGES ON DATABASE test TO plaintestrole;
 EOF
+
+psql -h "$PGDATA"  -p 5430 test <<EOF
+CREATE EXTENSION "uuid-ossp";
+CREATE TABLE contacts (
+    contact_id uuid DEFAULT uuid_generate_v4(),
+    first_name VARCHAR NOT NULL,
+    last_name VARCHAR NOT NULL,
+    email VARCHAR NOT NULL,
+    phone VARCHAR,
+    PRIMARY KEY (contact_id)
+);
+INSERT INTO contacts (
+    first_name, last_name, email, phone
+)
+SELECT
+    left(md5(s.i::text), 10),
+    random()::text,
+    md5(random()::text),
+    left(md5(random()::text), 4)
+from generate_series(1, 999999) s(i);
+ALTER TABLE contacts OWNER TO plaintestrole;
+EOF
+
+```
+
+```shell
+psql "postgresql://plaintestrole:plaintestpassword@127.0.0.1:5432/test?sslmode=disable" -c "select inet_server_addr(), current_user, now(), session_user;"
+psql "postgresql://plaintestrole:plaintestpassword@127.0.0.1:5432/test?sslmode=disable" -c "select * from contacts limit 990 ;"
+
 ```
 
 ## SCRAM testing, with SSL

@@ -1,8 +1,9 @@
 package virtualuser_authentication
 
-// https://www.postgresql.org/docs/11/protocol-flow.html
-// https://www.postgresql.org/docs/11/sasl-authentication.html
-// https://www.postgresql.org/docs/11/protocol-message-formats.html
+// https://www.postgresql.org/docs/current/protocol.html
+// https://www.postgresql.org/docs/current/protocol-flow.html
+// https://www.postgresql.org/docs/current/sasl-authentication.html
+// https://www.postgresql.org/docs/current/protocol-message-formats.html
 
 import (
 	"fmt"
