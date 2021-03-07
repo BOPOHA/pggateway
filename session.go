@@ -95,7 +95,7 @@ func (s *Session) GetUserPassword(method pgproto.AuthenticationMethod) (*pgproto
 	if !ok {
 		return nil, nil, fmt.Errorf("expected password message")
 	}
-	s.password = pwdMsg.Password
+	s.password = pwdMsg.HeaderMessage
 
 	return auth, pwdMsg, nil
 }
@@ -172,7 +172,7 @@ func (s *Session) proxyServerMessages(stop *sync.Cond, errs []error) {
 
 		flush := false
 		switch m := msg.(type) {
-		case *pgproto.ReadyForQuery, *pgproto.CopyDone:
+		case *pgproto.ReadyForQuery:
 			flush = true
 		case *pgproto.AuthenticationRequest:
 			flush = m.Method != pgproto.AuthenticationMethodOK
@@ -332,7 +332,7 @@ func (s *Session) AuthOnServer(dbUser, dbPassword string) (err error) {
 	case pgproto.AuthenticationMethodOK:
 		return s.WriteToClient(authResp)
 	case pgproto.AuthenticationMethodPlaintext:
-		return s.WriteToServer(&pgproto.PasswordMessage{Password: []byte(dbPassword)})
+		return s.WriteToServer(&pgproto.PasswordMessage{HeaderMessage: []byte(dbPassword)})
 	case pgproto.AuthenticationMethodMD5:
 		passwdReq := &pgproto.PasswordMessage{}
 		passwdReq.SetPassword([]byte(dbUser), []byte(dbPassword), authResp.Salt)
@@ -373,7 +373,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 		return fmt.Errorf("error creating first scram msg %s", err)
 	}
 
-	initSASLResponse := &pgproto.SASLInitialResponse{Mechanism: scramMechanism, Message: []byte(strMsg)}
+	initSASLResponse := &pgproto.PasswordMessage{HeaderMessage: []byte(scramMechanism), BodyMessage: []byte(strMsg)}
 	rawMsg, err = s.GetAuthMessageFromServer(initSASLResponse)
 	if err != nil {
 		return err
@@ -427,33 +427,6 @@ func (s *Session) GetAuthMessageFromServer(message pgproto.ClientMessage) (msg [
 	}
 }
 
-func (s *Session) GetAuthMessageFromClient(message pgproto.ServerMessage) (resp *pgproto.SASLInitialResponse, err error) {
-
-	s.plugins.LogDebug(s.loggingContextWithMessage(message), "gateway request to client")
-
-	err = s.WriteToClient(message)
-
-	if err != nil {
-		return nil, fmt.Errorf("write to client error: %s", err)
-	}
-
-	msg, err := pgproto.ParseSASLInitialResponse(s.client)
-
-	if err == io.EOF {
-		return msg, io.EOF
-	}
-
-	if err != nil {
-		if !s.stopped {
-			s.plugins.LogError(nil, "error parsing SASLInitialResponse: %#v", err)
-		}
-	} else {
-		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "client response")
-	}
-
-	return msg, err
-}
-
 func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationRequest) ([]byte, error) {
 	// it is almost (s *Session) GetUserPassword func
 	// i don't want to touch the session context
@@ -477,7 +450,7 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 		return nil, fmt.Errorf("expected PasswordMessage")
 	}
 
-	return pwdMsg.Password, nil
+	return pwdMsg.HeaderMessage, nil
 }
 
 func (s *Session) GetStartup() *pgproto.StartupMessage {

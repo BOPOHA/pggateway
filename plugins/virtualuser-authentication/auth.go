@@ -25,7 +25,7 @@ func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session)
 		if err != nil {
 			return err
 		}
-		if !CheckMD5UserPassword([]byte(rolpassword[3:]), authReq.Salt, passwd.Password[3:]) {
+		if !CheckMD5UserPassword([]byte(rolpassword[3:]), authReq.Salt, passwd.HeaderMessage[3:]) {
 			return fmt.Errorf("failed to login user %s, md5 password check failed", customUserName)
 		}
 	} else {
@@ -33,7 +33,7 @@ func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session)
 		if err != nil {
 			return fmt.Errorf("failed to get password")
 		}
-		if string(passwd.Password) != rolpassword {
+		if string(passwd.HeaderMessage) != rolpassword {
 			return fmt.Errorf("failed to login user %s, plaintext password check failed", customUserName)
 		}
 

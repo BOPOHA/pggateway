@@ -1,6 +1,7 @@
 # setup dev env
 
 ## passthrough testing, W/O SSL, password auth
+
 ```shell
 export PGDATA=/tmp/pg_data_passthrough
 initdb --locale=en_US.UTF-8 -E UTF8 --auth-host=password --auth-local=peer
@@ -80,6 +81,7 @@ psql  "postgresql://username:securepassword@127.0.0.1:5432/test?sslmode=require"
 psql  "postgresql://zoo1:pass1@127.0.0.1:5432/test?sslmode=require"               -c "$TESSQL"
 psql  "postgresql://arni2:pass3@127.0.0.1:5432/test?sslmode=require"              -c "$TESSQL"
 ```
+
 ```shell
 $ psql  "postgresql://test:test@127.0.0.1:2345/test?sslmode=require"                -c "$TESSQL"
  inet_server_addr | current_user |              now              | session_user 

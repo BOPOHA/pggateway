@@ -9,17 +9,33 @@ import (
 
 // Gateway to Client
 func SCRAMSHA256ClientAuth(sess *pggateway.Session, rolpassword string) error {
-	clientAuthMech, err := sess.GetAuthMessageFromClient(
-		&pgproto.AuthenticationRequest{
-			Method:                   pgproto.AuthenticationMethodSASL,
-			SupportedScramSHA256:     true,
-			SupportedScramSHA256Plus: false,
-		})
-	if err != nil {
-		return fmt.Errorf("client does not support sasl auth: %s", err)
+
+	authReq := &pgproto.AuthenticationRequest{
+		Method:                   pgproto.AuthenticationMethodSASL,
+		SupportedScramSHA256:     true,
+		SupportedScramSHA256Plus: false,
 	}
-	if clientAuthMech.Mechanism != pgproto.SASLMechanismScramSHA256 {
-		return fmt.Errorf("client's SASL authentication mechanisms are not supported: %s", err)
+	//sess.plugins.LogDebug(s.loggingContextWithMessage(message), "gateway request to client")
+
+	err := sess.WriteToClient(authReq)
+
+	if err != nil {
+		return fmt.Errorf("write to client error: %v", err)
+	}
+
+	clientAuthResp, err := sess.ParseClientRequest()
+	if err != nil {
+		return fmt.Errorf("client does not support sasl auth: %v", err)
+	}
+	clientAuthMech, ok := clientAuthResp.(*pgproto.PasswordMessage)
+	if !ok {
+		return fmt.Errorf("client's sent not a Password Response: %v", err)
+	}
+	if len(clientAuthMech.BodyMessage) == 0 {
+		return fmt.Errorf("client's sent not a SASLInitialResponse: %v", err)
+	}
+	if string(clientAuthMech.HeaderMessage) != pgproto.SASLMechanismScramSHA256 {
+		return fmt.Errorf("client's SASL authentication mechanisms are not supported: %v", err)
 	}
 	storedCredentials, err := GetStoredCredentialsFromString(rolpassword)
 
@@ -41,7 +57,7 @@ func SCRAMSHA256ClientAuth(sess *pggateway.Session, rolpassword string) error {
 	}
 	conv := scramServer.NewConversation()
 	var strMsg string
-	strMsg, err = conv.Step(string(clientAuthMech.Message))
+	strMsg, err = conv.Step(string(clientAuthMech.BodyMessage))
 
 	if err != nil {
 		// strMsg == "e=unknown-user"

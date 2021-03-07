@@ -85,7 +85,7 @@ func TestClienServerConvSCRAMSHA256FakePassword(t *testing.T) {
 		t.Fatalf("error %s", err)
 	}
 	if sm, ok := sm.(*pgproto.Error); !ok {
-		// "Message":"password authentication failed for user \"test\""
+		// "BodyMessage":"password authentication failed for user \"test\""
 		if err != io.EOF {
 			t.Fatalf("expected Error message, got %#v", sm)
 		}
@@ -153,7 +153,7 @@ func TestClienServerConvSCRAMSHA256RightCreds(t *testing.T) {
 	}
 	if _, ok := sm.(*pgproto.AuthenticationRequest); !ok {
 		// Expected &pgproto.AuthenticationRequest{
-		// Method:0, Salt:[]uint8(nil), SupportedScramSHA256:false, SupportedScramSHA256Plus:false, Message:[]uint8(nil)}
+		// Method:0, Salt:[]uint8(nil), SupportedScramSHA256:false, SupportedScramSHA256Plus:false, BodyMessage:[]uint8(nil)}
 		t.Fatalf("expected Error message, got %#v", sm)
 	}
 	//fmt.Printf("%#v: ", sm)

@@ -42,7 +42,7 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 	awsSess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentialsFromCreds(credentials.Value{
 			AccessKeyID:     string(sess.User),
-			SecretAccessKey: string(passwd.Password),
+			SecretAccessKey: string(passwd.HeaderMessage),
 		}),
 	}))
 	client := iam.New(awsSess)
@@ -83,7 +83,7 @@ func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {
 	passwdReq := &pgproto.PasswordMessage{}
 	switch authResp.Method {
 	case pgproto.AuthenticationMethodPlaintext:
-		passwdReq.Password = []byte(p.DbPassword)
+		passwdReq.HeaderMessage = []byte(p.DbPassword)
 	case pgproto.AuthenticationMethodMD5:
 		passwdReq.SetPassword([]byte(p.DbUser), []byte(p.DbPassword), authResp.Salt)
 	default:
