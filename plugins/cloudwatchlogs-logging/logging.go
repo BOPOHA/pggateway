@@ -27,6 +27,7 @@ const (
 	LevelInfo
 )
 
+//goland:noinspection GoNameStartsWithPackageName
 type LoggingPlugin struct {
 	sess   *session.Session
 	log    *cloudwatchlogs.CloudWatchLogs
@@ -134,7 +135,7 @@ func (l *LoggingPlugin) putLogEvent(level logLevel, context pggateway.LoggingCon
 		LogStreamName: aws.String(l.stream),
 		SequenceToken: l.token,
 		LogEvents: []*cloudwatchlogs.InputLogEvent{
-			&cloudwatchlogs.InputLogEvent{
+			{
 				Message:   aws.String(string(msgFormatted)),
 				Timestamp: aws.Int64(now),
 			},

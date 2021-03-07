@@ -15,8 +15,8 @@ func init() {
 func newPassthroughPlugin(config interface{}) (pggateway.AuthenticationPlugin, error) {
 
 	plugin := &Passthrough{}
-	pggateway.FillStruct(config, plugin)
-	return plugin, nil
+	err := pggateway.FillStruct(config, plugin)
+	return plugin, err
 }
 
 func (p *Passthrough) Authenticate(sess *pggateway.Session) (bool, error) {

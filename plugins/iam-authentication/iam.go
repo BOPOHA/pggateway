@@ -11,6 +11,7 @@ import (
 	"github.com/c653labs/pgproto"
 )
 
+//goland:noinspection GoNameStartsWithPackageName
 type IAMAuth struct {
 	RoleArn    string `json:"role"`
 	DbUser     string `json:"db"`
@@ -24,8 +25,8 @@ func init() {
 
 func newIAMPlugin(config interface{}) (pggateway.AuthenticationPlugin, error) {
 	plugin := &IAMAuth{}
-	pggateway.FillStruct(config, plugin)
-	return plugin, nil
+	err := pggateway.FillStruct(config, plugin)
+	return plugin, err
 }
 
 func (p *IAMAuth) Authenticate(sess *pggateway.Session) (bool, error) {

@@ -1,4 +1,5 @@
 # PGGateway
+
 [![GoDoc](https://godoc.org/github.com/c653labs/pggateway?status.svg)](https://godoc.org/github.com/c653labs/pggateway)
 
 **Note:** This project is still under active development and is not quite ready for prime time yet.
@@ -6,6 +7,7 @@
 PGGateway is a PostgreSQL proxy service that allows you to use custom authentication and request logging plugins.
 
 ## Building
+
 ```bash
 # clone
 git clone git://github.com/c653labs/pggateway
@@ -19,6 +21,7 @@ CGO_ENABLED=0 go build -o pggateway -a -ldflags "-s -w" cmd/pggateway/main.go
 ```
 
 ## Running
+
 ```
 $ pggateway -help
 Usage of pggateway:
@@ -71,6 +74,7 @@ INFO[2018-04-15T08:44:46-04:00] client session end                            cl
 </details>
 
 ## Configuration file
+
 Basic example, proxying requests for any database from `127.0.0.1:5433` to `127.0.0.1:5432`.
 
 ```yaml
@@ -105,12 +109,15 @@ listeners:
 ```
 
 ## Plugins
+
 Authentication and logging plugins can be configured on a per-listener basis.
 
 ### Authentication
+
 The following are the available built-in authentication plugins.
 
 #### Passthrough
+
 Passthrough authentication forwards all authentication requests to the target server.
 
 There are no configuration options for `passthrough` authentication plugin.
@@ -125,7 +132,9 @@ listeners:
 ```
 
 ### Logging
+
 #### CloudWatch logs
+
 CloudWatch logs plugin will write log entries to a CloudWatch log group and stream.
 
 Configuration options:
@@ -152,6 +161,7 @@ listeners:
 ```
 
 #### File
+
 File logging writes log entries to a file or `stdout`.
 
 Configuration options:

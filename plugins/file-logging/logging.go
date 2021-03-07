@@ -15,6 +15,7 @@ func init() {
 	pggateway.RegisterLoggingPlugin("file", NewLoggingPlugin)
 }
 
+//goland:noinspection GoNameStartsWithPackageName
 type LoggingPlugin struct {
 	log zerolog.Logger
 }
