@@ -69,7 +69,7 @@ func (s *Session) Handle() error {
 	}
 
 	if !success {
-		_ = RetunErrorfAndWritePGMsg(s.client, "failed to authenticate")
+		_ = s.WriteToClientEf("failed to authenticate")
 		return nil
 	}
 
@@ -215,7 +215,7 @@ func (s *Session) WriteToClient(msg pgproto.ServerMessage) error {
 }
 
 func (s *Session) WriteToClientEf(format string, a ...interface{}) error {
-	return RetunErrorfAndWritePGMsg(s.client, format, a...)
+	return s.WriteToClientEf(format, a...)
 }
 
 func (s *Session) ParseClientRequest() (pgproto.ClientMessage, error) {
