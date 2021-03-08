@@ -383,7 +383,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 		return fmt.Errorf("second sasl challenge failed: %s", err)
 	}
 
-	nextSASLResponse := &pgproto.SASLResponse{Message: []byte(strMsg)}
+	nextSASLResponse := &pgproto.PasswordMessage{BodyMessage: []byte(strMsg)}
 	rawMsg, err = s.GetAuthMessageFromServer(nextSASLResponse)
 	if err != nil {
 		return err
@@ -450,7 +450,7 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 		return nil, fmt.Errorf("expected PasswordMessage")
 	}
 
-	return pwdMsg.HeaderMessage, nil
+	return pwdMsg.BodyMessage, nil
 }
 
 func (s *Session) GetStartup() *pgproto.StartupMessage {

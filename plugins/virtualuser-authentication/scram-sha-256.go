@@ -76,7 +76,7 @@ func SCRAMSHA256ClientAuth(sess *pggateway.Session, rolpassword string) error {
 	if err != nil {
 		// strMsg == "e=invalid-proof"
 		sess.WriteToClientEf("failed to authenticate user %s", string(sess.User))
-		return fmt.Errorf("auth failed")
+		return fmt.Errorf("auth failed: %s [%s]", strMsg, err.Error())
 	}
 	err = sess.WriteToClient(&pgproto.AuthenticationRequest{
 		Method:  pgproto.AuthenticationMethodSASLFinal,
