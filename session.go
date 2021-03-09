@@ -428,7 +428,7 @@ func (s *Session) GetAuthMessageFromServer(message pgproto.ClientMessage) (msg [
 
 func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationRequest) ([]byte, error) {
 	// it is almost (s *Session) GetUserPassword func
-	// i don't want to touch the session context
+	// but without changing the session context
 	s.plugins.LogDebug(s.loggingContextWithMessage(auth), "gateway request to client")
 
 	err := s.WriteToClient(auth)
@@ -517,7 +517,7 @@ func (s *Session) SCRAMSHA256ClientAuth(credentiallookup scram.CredentialLookup)
 	if err != nil {
 		// strMsg == "e=invalid-proof"
 		s.WriteToClientEf("failed to authenticate user %s", string(s.User))
-		return fmt.Errorf("auth failed: %s [%s]", strMsg, err.Error())
+		return fmt.Errorf("auth failed: %s [%s]", strMsg, err)
 	}
 	err = s.WriteToClient(&pgproto.AuthenticationRequest{
 		Method:  pgproto.AuthenticationMethodSASLFinal,

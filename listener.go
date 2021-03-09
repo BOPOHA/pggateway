@@ -116,6 +116,7 @@ func (l *Listener) handleClient(client net.Conn) error {
 	sess, err := NewSession(startup, user, database, isSSL, client, nil, l.plugins)
 	if err != nil {
 		l.plugins.LogError(nil, "error creating new client session: %s", err)
+		client.Close()
 		return err
 	}
 
