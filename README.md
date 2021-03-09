@@ -86,26 +86,23 @@ logging:
 
 listeners:
   # Listen for requests on port `5433`
-  '127.0.0.1:5433':
-    # PostgreSQL server to forward requests to
-    target:
-      host: '127.0.0.1'
-      port: 5432
-
+  - bind: '127.0.0.1:5433'
     # Pass all authentication along to the target server
     authentication:
       passthrough:
-
+        # PostgreSQL server to forward requests to
+        target:
+          host: '127.0.0.1'
+          port: 5432
+          # Databases we will accept requests for,
+          # empty list matching any database
+          databases:
+            - "test"
     # Log messages from this listener to stdout
     logging:
       file:
         level: 'info'
         out: '-'
-
-    # Databases we will accept requests for,
-    #   '*' is a special case matching any database
-    databases:
-      '*':
 ```
 
 ## Plugins
@@ -126,9 +123,39 @@ Example usage:
 
 ```yaml
 listeners:
-  ':5433':
+  - bind: ':5433'
     authentication:
       passthrough:
+```
+
+#### VirtualUser
+
+Example usage:
+
+```yaml
+  - bind: ':5433'
+    authentication:
+      virtualuser-authentication:
+        - name: 'host1'
+          users:
+            host1user0: 'pass0' # plaintext password
+            host1user1: 'md5eb93956e0e5654c7bacc18531f2b2982' # md5 hashed password
+          target:
+            host: '127.0.0.1'
+            port: 5432
+            user: 'test'
+            password: 'test'
+            databases:
+              - "test"
+              - "stats"
+        - name: 'host2'
+          users:
+            host2user3: 'SCRAM-SHA-256$4096:GLBU5JUuBLn0t6gh8SurcA==$lvLKVbiO0LBbj7fU7sGVa61Hy/QjOnOyz9N+qsTaIEQ=:9rO0gSuecLXGw6ArRS6PfK49YCo3iYgGKtDAR36wK5E=' # scram secret for `pggateway` password
+          target:
+            host: '127.0.0.2'
+            port: 2345
+            user: 'test2'
+            password: 'test2'
 ```
 
 ### Logging

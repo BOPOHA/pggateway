@@ -26,7 +26,7 @@ listeners:
             zoo: 'md55dbb0a6ccb20a0399b301f69616cf4ca' # echo -n pass1zoo | md5sum
             arni: 'pass2'
             username: 'SCRAM-SHA-256$4096:CCKYO5ux7oZ5CcIMzDXw/A==$I0vnZaWMaqCF2xR3/+lMgXwJZKdHILWKFsQm3QpgRp0=:TBiVAuxlUrYOBqnvsVzFISHxwG+aqAyWUcC8ovl5pGs=' # securepassword
-            user: 'SCRAM-SHA-256$4096:iLSPyp46KvvOqk'
+            user: 'SCRAM-SHA-256$4096:iLSPyp46KvvOqk' # malformed for test
           # PostgreSQL server to forward requests to
           target:
             host: '127.0.0.1'
