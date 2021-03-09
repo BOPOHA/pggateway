@@ -60,18 +60,18 @@ func TestClienServerConvSCRAMSHA256FakePassword(t *testing.T) {
 	initialOptions := map[string][]byte{"database": []byte("test")}
 	sessPlugins, err := pggateway.NewPluginRegistry(sessConfig.Authentication, sessConfig.Logging)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	sess, err := pggateway.NewSession(&pgproto.StartupMessage{Options: initialOptions}, nil, nil, false, nil, nil, sessPlugins)
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	time.Sleep(200 * time.Microsecond) // waiting for server starts
 	// test with fake creds
 	err = sess.ConnectToTarget(c.Listeners[0].Bind)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 
 	err = sess.AuthOnServer("username", "fakesecurepassword")
@@ -82,7 +82,7 @@ func TestClienServerConvSCRAMSHA256FakePassword(t *testing.T) {
 	sm, err := sess.ParseServerResponse()
 
 	if err != nil && err != io.EOF {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	if sm, ok := sm.(*pgproto.Error); !ok {
 		// "BodyMessage":"password authentication failed for user \"test\""
@@ -122,26 +122,26 @@ func TestClienServerConvSCRAMSHA256RightCreds(t *testing.T) {
 	initialOptions := map[string][]byte{"database": database, "user": username}
 	sessPlugins, err := pggateway.NewPluginRegistry(sessConfig.Authentication, sessConfig.Logging)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %c", err)
 	}
 	sess, err := pggateway.NewSession(&pgproto.StartupMessage{Options: initialOptions}, username, database, false, nil, nil, sessPlugins)
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	time.Sleep(200 * time.Microsecond) // waiting for server starts
 	// test with wright creds
 	err = sess.ConnectToTarget(c.Listeners[0].Bind)
 	//sess.
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 
 	fmt.Printf("#### %s \n%s\n\n\n###", sess.User, sess.Database)
 	err = sess.AuthOnServer(string(username), string(password))
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	time.Sleep(200 * time.Millisecond)
 	return // TODO: here we have {"level":"error","time":1614608259,"message":"error handling client session: virtual user  does not exist"}
@@ -149,7 +149,7 @@ func TestClienServerConvSCRAMSHA256RightCreds(t *testing.T) {
 	sm, err := sess.ParseServerResponse()
 
 	if err != nil && err != io.EOF {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	if _, ok := sm.(*pgproto.AuthenticationRequest); !ok {
 		// Expected &pgproto.AuthenticationRequest{

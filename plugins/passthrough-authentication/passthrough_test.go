@@ -45,29 +45,29 @@ func TestClienServerConvPlainText(t *testing.T) {
 	initialOptions := map[string][]byte{"database": []byte("test")}
 	sessPlugins, err := pggateway.NewPluginRegistry(sessConfig.Authentication, sessConfig.Logging)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	sess, err := pggateway.NewSession(&pgproto.StartupMessage{Options: initialOptions}, nil, nil, false, nil, nil, sessPlugins)
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	time.Sleep(200 * time.Microsecond) // waiting for server starts
 	// test with fake creds
 	err = sess.ConnectToTarget(c.Listeners[0].Bind)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 
 	err = sess.AuthOnServer("test", "test")
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	sm, err := sess.ParseServerResponse()
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	if sm, ok := sm.(*pgproto.Error); !ok {
 		// "BodyMessage":"password authentication failed for user \"test\""
@@ -77,17 +77,17 @@ func TestClienServerConvPlainText(t *testing.T) {
 	// test with wright creds
 	err = sess.ConnectToTarget(c.Listeners[0].Bind)
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	err = sess.AuthOnServer("plaintestrole", "plaintestpassword")
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	sm, err = sess.ParseServerResponse()
 
 	if err != nil {
-		t.Fatalf("error %s", err)
+		t.Fatalf("error %v", err)
 	}
 	if _, ok := sm.(*pgproto.AuthenticationRequest); !ok {
 		// Expected &pgproto.AuthenticationRequest{

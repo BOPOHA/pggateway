@@ -226,7 +226,7 @@ func (s *Session) ParseClientRequest() (pgproto.ClientMessage, error) {
 
 	if err != nil {
 		if !s.stopped {
-			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing client request: %s", err)
+			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing client request: %v", err)
 		}
 	} else {
 		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "client request")
@@ -285,11 +285,11 @@ func (s *Session) ConnectToTarget(addr string) (err error) {
 	if s.IsSSL {
 		err = s.WriteToServer(&pgproto.SSLRequest{})
 		if err != nil {
-			return fmt.Errorf("error writing SSLRequest to server: %s", err)
+			return fmt.Errorf("error writing SSLRequest to server: %v", err)
 		}
 		err = pgproto.ParseSSLResponse(s.target)
 		if err != nil {
-			return fmt.Errorf("server does not support SSL: %s", err)
+			return fmt.Errorf("server does not support SSL: %v", err)
 		}
 		s.target = tls.Client(s.target, &tls.Config{InsecureSkipVerify: true})
 	}
@@ -370,7 +370,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	conv := scramClient.NewConversation()
 	strMsg, err = conv.Step("")
 	if err != nil {
-		return fmt.Errorf("error creating first scram msg %s", err)
+		return fmt.Errorf("error creating first scram msg %v", err)
 	}
 
 	initSASLResponse := &pgproto.PasswordMessage{HeaderMessage: []byte(scramMechanism), BodyMessage: []byte(strMsg)}
@@ -380,7 +380,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	}
 	strMsg, err = conv.Step(string(rawMsg))
 	if err != nil {
-		return fmt.Errorf("second sasl challenge failed: %s", err)
+		return fmt.Errorf("second sasl challenge failed: %v", err)
 	}
 
 	nextSASLResponse := &pgproto.PasswordMessage{BodyMessage: []byte(strMsg)}
@@ -392,7 +392,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	strMsg, err = conv.Step(string(rawMsg))
 
 	if err != nil {
-		return fmt.Errorf("third sasl challenge failed: %s", err)
+		return fmt.Errorf("third sasl challenge failed: %v", err)
 	}
 
 	return nil
@@ -435,13 +435,13 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 	err := s.WriteToClient(auth)
 
 	if err != nil {
-		return nil, fmt.Errorf("write to client error: %s", err)
+		return nil, fmt.Errorf("write to client error: %v", err)
 	}
 
 	msg, err := s.ParseClientRequest()
 
 	if err != nil {
-		return nil, fmt.Errorf("parse %T response error: %s", msg, err)
+		return nil, fmt.Errorf("parse %T response error: %v", msg, err)
 	}
 
 	pwdMsg, ok := msg.(*pgproto.PasswordMessage)
@@ -464,4 +464,68 @@ func (s *Session) generateSalt() {
 func (s *Session) DialToS(host string, port int) error {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	return s.ConnectToTarget(addr)
+}
+
+// Gateway to Client
+func (s *Session) SCRAMSHA256ClientAuth(credentiallookup scram.CredentialLookup) error {
+
+	authReq := &pgproto.AuthenticationRequest{
+		Method:                   pgproto.AuthenticationMethodSASL,
+		SupportedScramSHA256:     true,
+		SupportedScramSHA256Plus: false,
+	}
+	s.plugins.LogDebug(s.loggingContextWithMessage(authReq), "gateway request to client")
+
+	err := s.WriteToClient(authReq)
+	if err != nil {
+		return fmt.Errorf("write to client error: %v", err)
+	}
+
+	clientAuthResp, err := s.ParseClientRequest()
+	if err != nil {
+		return fmt.Errorf("client does not support sasl auth: %v", err)
+	}
+	clientAuthMech, ok := clientAuthResp.(*pgproto.PasswordMessage)
+	if !ok {
+		return fmt.Errorf("client sent not a Password Response: %v", err)
+	}
+	if len(clientAuthMech.BodyMessage) == 0 {
+		return fmt.Errorf("client sent not a SASLInitialResponse: %v", err)
+	}
+	if string(clientAuthMech.HeaderMessage) != pgproto.SASLMechanismScramSHA256 {
+		return fmt.Errorf("client's SASL authentication mechanisms are not supported: %v", err)
+	}
+
+	scramServer, err := scram.SHA256.NewServer(credentiallookup)
+	if err != nil {
+		return fmt.Errorf("failed to start scram conversation server: %v", err)
+	}
+	conv := scramServer.NewConversation()
+	var strMsg string
+	strMsg, err = conv.Step(string(clientAuthMech.BodyMessage))
+	if err != nil {
+		return fmt.Errorf("e=unknown-user: %v", err)
+	}
+	clientResp, err := s.GetPasswordMessageFromClient(
+		&pgproto.AuthenticationRequest{
+			Method:  pgproto.AuthenticationMethodSASLContinue,
+			Message: []byte(strMsg),
+		})
+	if err != nil {
+		return fmt.Errorf("AuthenticationMethodSASLContinue error: %v", err)
+	}
+	strMsg, err = conv.Step(string(clientResp))
+	if err != nil {
+		// strMsg == "e=invalid-proof"
+		s.WriteToClientEf("failed to authenticate user %s", string(s.User))
+		return fmt.Errorf("auth failed: %s [%s]", strMsg, err.Error())
+	}
+	err = s.WriteToClient(&pgproto.AuthenticationRequest{
+		Method:  pgproto.AuthenticationMethodSASLFinal,
+		Message: []byte(strMsg),
+	})
+	if err != nil {
+		return fmt.Errorf("AuthenticationMethodSASLFinal error: %v", err)
+	}
+	return nil
 }

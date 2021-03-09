@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/c653labs/pggateway"
 	"github.com/c653labs/pgproto"
+	"github.com/xdg/scram"
 	"strings"
 )
 
@@ -14,10 +15,21 @@ func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session)
 	rolpassword := p.GetRolePassword(customUserName)
 
 	if strings.HasPrefix(rolpassword, "SCRAM-SHA-256$") {
-		err := SCRAMSHA256ClientAuth(sess, rolpassword)
+		storedCredentials, err := pggateway.GetSCRAMStoredCredentials(rolpassword)
 		if err != nil {
-			return err
+			return fmt.Errorf("cant validate stored creds: %v", err)
 		}
+		credentiallookup := func(s string) (scram.StoredCredentials, error) {
+			// TODO: in SCRAM-...-PLUS will need additional check:
+			//if s != customUserName {
+			//	return scram.StoredCredentials{}, fmt.Errorf("user not found")
+			//}
+			return storedCredentials, nil
+
+		}
+		err = sess.SCRAMSHA256ClientAuth(credentiallookup)
+
+		return err
 
 	} else if strings.HasPrefix(rolpassword, "md5") {
 
@@ -25,7 +37,7 @@ func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session)
 		if err != nil {
 			return err
 		}
-		if !CheckMD5UserPassword([]byte(rolpassword[3:]), authReq.Salt, passwd.HeaderMessage[3:]) {
+		if !pggateway.CheckMD5UserPassword([]byte(rolpassword[3:]), authReq.Salt, passwd.HeaderMessage[3:]) {
 			return fmt.Errorf("failed to login user %s, md5 password check failed", customUserName)
 		}
 	} else {
