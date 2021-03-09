@@ -214,10 +214,6 @@ func (s *Session) WriteToClient(msg pgproto.ServerMessage) error {
 	return err
 }
 
-func (s *Session) WriteToClientEf(format string, a ...interface{}) error {
-	return s.WriteToClientEf(format, a...)
-}
-
 func (s *Session) ParseClientRequest() (pgproto.ClientMessage, error) {
 	msg, err := pgproto.ParseClientMessage(s.client)
 	if err == io.EOF {
@@ -226,7 +222,7 @@ func (s *Session) ParseClientRequest() (pgproto.ClientMessage, error) {
 
 	if err != nil {
 		if !s.stopped {
-			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing client request: %v", err)
+			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing client request: %s", err)
 		}
 	} else {
 		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "client request")
@@ -242,7 +238,7 @@ func (s *Session) ParseServerResponse() (pgproto.ServerMessage, error) {
 
 	if err != nil {
 		if !s.stopped {
-			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing server response: %#v", err)
+			s.plugins.LogError(s.loggingContextWithMessage(msg), "error parsing server response: %s", err)
 		}
 	} else {
 		s.plugins.LogDebug(s.loggingContextWithMessage(msg), "server response")
@@ -276,6 +272,9 @@ func (s *Session) loggingContextWithMessage(msg pgproto.Message) LoggingContext 
 	return context
 }
 
+func (s *Session) WriteToClientEf(format string, a ...interface{}) error {
+	return s.WriteToClientEf(format, a...)
+}
 func (s *Session) ConnectToTarget(addr string) (err error) {
 
 	s.target, err = net.Dial("tcp", addr)
@@ -285,11 +284,11 @@ func (s *Session) ConnectToTarget(addr string) (err error) {
 	if s.IsSSL {
 		err = s.WriteToServer(&pgproto.SSLRequest{})
 		if err != nil {
-			return fmt.Errorf("error writing SSLRequest to server: %v", err)
+			return fmt.Errorf("error writing SSLRequest to server: %s", err)
 		}
 		err = pgproto.ParseSSLResponse(s.target)
 		if err != nil {
-			return fmt.Errorf("server does not support SSL: %v", err)
+			return fmt.Errorf("server does not support SSL: %s", err)
 		}
 		s.target = tls.Client(s.target, &tls.Config{InsecureSkipVerify: true})
 	}
@@ -370,7 +369,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	conv := scramClient.NewConversation()
 	strMsg, err = conv.Step("")
 	if err != nil {
-		return fmt.Errorf("error creating first scram msg %v", err)
+		return fmt.Errorf("error creating first scram msg %s", err)
 	}
 
 	initSASLResponse := &pgproto.PasswordMessage{HeaderMessage: []byte(scramMechanism), BodyMessage: []byte(strMsg)}
@@ -380,7 +379,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	}
 	strMsg, err = conv.Step(string(rawMsg))
 	if err != nil {
-		return fmt.Errorf("second sasl challenge failed: %v", err)
+		return fmt.Errorf("second sasl challenge failed: %s", err)
 	}
 
 	nextSASLResponse := &pgproto.PasswordMessage{BodyMessage: []byte(strMsg)}
@@ -392,7 +391,7 @@ func (s *Session) SCRAMSHA256ServerAuth(authResp *pgproto.AuthenticationRequest,
 	strMsg, err = conv.Step(string(rawMsg))
 
 	if err != nil {
-		return fmt.Errorf("third sasl challenge failed: %v", err)
+		return fmt.Errorf("third sasl challenge failed: %s", err)
 	}
 
 	return nil
@@ -435,7 +434,7 @@ func (s *Session) GetPasswordMessageFromClient(auth *pgproto.AuthenticationReque
 	err := s.WriteToClient(auth)
 
 	if err != nil {
-		return nil, fmt.Errorf("write to client error: %v", err)
+		return nil, fmt.Errorf("write to client error: %s", err)
 	}
 
 	msg, err := s.ParseClientRequest()
@@ -478,33 +477,33 @@ func (s *Session) SCRAMSHA256ClientAuth(credentiallookup scram.CredentialLookup)
 
 	err := s.WriteToClient(authReq)
 	if err != nil {
-		return fmt.Errorf("write to client error: %v", err)
+		return fmt.Errorf("write to client error: %s", err)
 	}
 
 	clientAuthResp, err := s.ParseClientRequest()
 	if err != nil {
-		return fmt.Errorf("client does not support sasl auth: %v", err)
+		return fmt.Errorf("client does not support sasl auth: %s", err)
 	}
 	clientAuthMech, ok := clientAuthResp.(*pgproto.PasswordMessage)
 	if !ok {
-		return fmt.Errorf("client sent not a Password Response: %v", err)
+		return fmt.Errorf("client sent not a Password Response: %s", err)
 	}
 	if len(clientAuthMech.BodyMessage) == 0 {
-		return fmt.Errorf("client sent not a SASLInitialResponse: %v", err)
+		return fmt.Errorf("client sent not a SASLInitialResponse: %s", err)
 	}
 	if string(clientAuthMech.HeaderMessage) != pgproto.SASLMechanismScramSHA256 {
-		return fmt.Errorf("client's SASL authentication mechanisms are not supported: %v", err)
+		return fmt.Errorf("client's SASL authentication mechanisms are not supported: %s", err)
 	}
 
 	scramServer, err := scram.SHA256.NewServer(credentiallookup)
 	if err != nil {
-		return fmt.Errorf("failed to start scram conversation server: %v", err)
+		return fmt.Errorf("failed to start scram conversation server: %s", err)
 	}
 	conv := scramServer.NewConversation()
 	var strMsg string
 	strMsg, err = conv.Step(string(clientAuthMech.BodyMessage))
 	if err != nil {
-		return fmt.Errorf("e=unknown-user: %v", err)
+		return fmt.Errorf("e=unknown-user: %s", err)
 	}
 	clientResp, err := s.GetPasswordMessageFromClient(
 		&pgproto.AuthenticationRequest{
@@ -512,7 +511,7 @@ func (s *Session) SCRAMSHA256ClientAuth(credentiallookup scram.CredentialLookup)
 			Message: []byte(strMsg),
 		})
 	if err != nil {
-		return fmt.Errorf("AuthenticationMethodSASLContinue error: %v", err)
+		return fmt.Errorf("AuthenticationMethodSASLContinue error: %s", err)
 	}
 	strMsg, err = conv.Step(string(clientResp))
 	if err != nil {
@@ -525,7 +524,7 @@ func (s *Session) SCRAMSHA256ClientAuth(credentiallookup scram.CredentialLookup)
 		Message: []byte(strMsg),
 	})
 	if err != nil {
-		return fmt.Errorf("AuthenticationMethodSASLFinal error: %v", err)
+		return fmt.Errorf("AuthenticationMethodSASLFinal error: %s", err)
 	}
 	return nil
 }

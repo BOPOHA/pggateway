@@ -17,7 +17,7 @@ func (p *VirtualuserAuthentications) AuthenticateClient(sess *pggateway.Session)
 	if strings.HasPrefix(rolpassword, "SCRAM-SHA-256$") {
 		storedCredentials, err := pggateway.GetSCRAMStoredCredentials(rolpassword)
 		if err != nil {
-			return fmt.Errorf("cant validate stored creds: %v", err)
+			return fmt.Errorf("cant validate stored creds: %s", err)
 		}
 		credentiallookup := func(s string) (scram.StoredCredentials, error) {
 			// TODO: in SCRAM-...-PLUS will need additional check:

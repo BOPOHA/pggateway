@@ -36,16 +36,16 @@ func main() {
 	if traceFile != "" {
 		f, err := os.Create(traceFile)
 		if err != nil {
-			log.Fatalf("failed to create trace output file: %v", err)
+			log.Fatalf("failed to create trace output file: %s", err)
 		}
 		defer func() {
 			if err := f.Close(); err != nil {
-				log.Fatalf("failed to close trace file: %v", err)
+				log.Fatalf("failed to close trace file: %s", err)
 			}
 		}()
 
 		if err := trace.Start(f); err != nil {
-			log.Fatalf("failed to start trace: %v", err)
+			log.Fatalf("failed to start trace: %s", err)
 		}
 		defer trace.Stop()
 	}

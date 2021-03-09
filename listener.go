@@ -55,7 +55,7 @@ func (l *Listener) Handle() error {
 			if l.stopping {
 				return nil
 			}
-			l.plugins.LogError(nil, "error accepting client: %v", err)
+			l.plugins.LogError(nil, "error accepting client: %s", err)
 			return err
 		}
 
@@ -63,7 +63,7 @@ func (l *Listener) Handle() error {
 			defer conn.Close()
 			err := l.handleClient(conn)
 			if err != nil && err != io.EOF {
-				l.plugins.LogError(nil, "error handling client session: %v", err)
+				l.plugins.LogError(nil, "error handling client session: %s", err)
 			}
 		}(conn)
 	}
@@ -115,7 +115,7 @@ func (l *Listener) handleClient(client net.Conn) error {
 
 	sess, err := NewSession(startup, user, database, isSSL, client, nil, l.plugins)
 	if err != nil {
-		l.plugins.LogError(nil, "error creating new client session: %v", err)
+		l.plugins.LogError(nil, "error creating new client session: %s", err)
 		return err
 	}
 
@@ -125,7 +125,7 @@ func (l *Listener) handleClient(client net.Conn) error {
 	err = sess.Handle()
 
 	if err != nil && err != io.EOF {
-		l.plugins.LogError(sess.loggingContext(), "client session end: %v", err)
+		l.plugins.LogError(sess.loggingContext(), "client session end: %s", err)
 	} else {
 		l.plugins.LogInfo(sess.loggingContext(), "client session end")
 	}
